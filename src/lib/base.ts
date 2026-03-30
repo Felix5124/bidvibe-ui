@@ -89,7 +89,20 @@ apiClient.interceptors.request.use((config) => {
 })
 
 // Trả về thẳng response.data (ApiResponse)
-apiClient.interceptors.response.use((response) => response.data)
+apiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    // Handle 401 - redirect to login
+    if (error.response?.status === 401) {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('sb_jwt')
+      localStorage.removeItem('user')
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 // ======================
 // WebSocket Helper (STOMP)

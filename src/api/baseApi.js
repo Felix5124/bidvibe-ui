@@ -15,7 +15,8 @@ const api = axios.create({
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken')
+    // Prefer Supabase JWT token, fallback to existing authToken
+    const token = localStorage.getItem('sb_jwt') || localStorage.getItem('authToken')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -31,7 +32,10 @@ api.interceptors.response.use(
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken')
+      localStorage.removeItem('sb_jwt')
       localStorage.removeItem('user')
+      // Optionally trigger Supabase sign‑out via custom event
+      window.dispatchEvent(new CustomEvent('auth:logout'))
       window.location.href = '/login'
     }
     return Promise.reject(error)
