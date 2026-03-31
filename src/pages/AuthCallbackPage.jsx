@@ -8,18 +8,21 @@ export default function AuthCallbackPage() {
   const { fetchUserProfile } = useAuthStore()
 
   useEffect(() => {
+    // Complete OAuth callback by resolving session then loading backend profile.
     const handleCallback = async () => {
-      // Supabase auto‑detects session from URL and saves it
-      // Wait a moment for the session to be established
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      try {
+        // Supabase auto‑detects session from URL and saves it.
+        await new Promise((resolve) => setTimeout(resolve, 500))
 
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        // Fetch user profile from backend
-        await fetchUserProfile()
-        navigate('/')
-      } else {
-        // No session, redirect to login
+        const { data } = await supabase.auth.getSession()
+        if (data.session) {
+          await fetchUserProfile()
+          navigate('/')
+        } else {
+          navigate('/login')
+        }
+      } catch (err) {
+        console.error('[AuthCallbackPage] Failed to complete auth callback', err)
         navigate('/login')
       }
     }

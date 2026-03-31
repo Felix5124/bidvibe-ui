@@ -69,7 +69,7 @@ export const getListingMessages = (listingId) => {
 /**
  * Send a negotiation message on a listing
  * @param {string} listingId - Listing ID
- * @param {Object} data - {message}
+ * @param {Object} data - {content}
  */
 export const sendListingMessage = (listingId, data) => {
   return api.post(`/market/listings/${listingId}/messages`, data)

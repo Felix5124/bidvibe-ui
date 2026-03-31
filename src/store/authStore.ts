@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { apiClient } from '../lib/base'
 import { User } from '../lib/base'
+import { logError } from '../lib/logger'
 
 interface AuthStore {
   user: User | null
@@ -18,6 +19,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isLoading: false,
   error: null,
 
+  // Start OAuth login flow via Google and redirect to callback.
   loginWithGoogle: async () => {
     set({ isLoading: true, error: null })
     try {
@@ -30,12 +32,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       if (error) throw error
       // Redirect happens, no further action needed
     } catch (err: any) {
+      logError('AuthStore', 'Google login failed', err)
       set({ error: err.message || 'Login failed' })
     } finally {
       set({ isLoading: false })
     }
   },
 
+  // Sign out from Supabase and clear local client auth state.
   logout: async () => {
     set({ isLoading: true })
     try {
@@ -46,12 +50,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       localStorage.removeItem('user')
       set({ user: null })
     } catch (err: any) {
+      logError('AuthStore', 'Logout failed', err)
       set({ error: err.message || 'Logout failed' })
     } finally {
       set({ isLoading: false })
     }
   },
 
+  // Load authenticated user profile from backend.
   fetchUserProfile: async () => {
     set({ isLoading: true })
     try {
@@ -67,7 +73,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const userData = response.data?.data || response.data
       set({ user: userData })
     } catch (err: any) {
-      console.error('Failed to fetch user profile:', err)
+      logError('AuthStore', 'Failed to fetch user profile', err)
       set({ user: null })
     } finally {
       set({ isLoading: false })

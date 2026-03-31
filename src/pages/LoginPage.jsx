@@ -16,17 +16,20 @@ export default function LoginPage() {
     }
   }, [user, navigate])
 
+  // Trigger Google OAuth login flow.
   const handleGoogleLogin = async () => {
+    console.info('[LoginPage] Starting Google login flow')
     await loginWithGoogle()
   }
 
+  // Handle email/password submit (placeholder flow in current UI).
   const handleEmailLogin = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
     // Giả lập gọi API - Thay thế bằng logic đăng nhập thật của bạn
     setTimeout(() => {
       setIsSubmitting(false)
-      console.log('Đăng nhập với:', email, password)
+      console.info('[LoginPage] Email login placeholder submit', { email, hasPassword: Boolean(password) })
     }, 1500)
   }
 

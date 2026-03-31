@@ -17,15 +17,23 @@ import api from './baseApi'
  * @param {number} size - Page size (default: 20)
  */
 export const listUsers = (filters = {}, page = 0, size = 20) => {
+  const params = { page, size }
+
+  if (filters.search != null && String(filters.search).trim() !== '') {
+    params.search = String(filters.search).trim()
+  }
+  if (filters.role != null && String(filters.role).trim() !== '') {
+    params.role = filters.role
+  }
+  if (typeof filters.isBanned === 'boolean') {
+    params.isBanned = filters.isBanned
+  }
+  if (typeof filters.isMuted === 'boolean') {
+    params.isMuted = filters.isMuted
+  }
+
   return api.get('/admin/users', {
-    params: {
-      search: filters.search,
-      role: filters.role,
-      isBanned: filters.isBanned,
-      isMuted: filters.isMuted,
-      page,
-      size,
-    },
+    params,
   })
 }
 

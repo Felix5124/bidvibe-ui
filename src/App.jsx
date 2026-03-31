@@ -6,6 +6,20 @@ import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import HomePage from './pages/HomePage'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import InventoryPage from './pages/InventoryPage'
+import ItemDetailPage from './pages/ItemDetailPage'
+import MyProfilePage from './pages/MyProfilePage'
+import UserProfilePage from './pages/UserProfilePage'
+import AuctionRoomPage from './pages/AuctionRoomPage'
+import MarketPage from './pages/MarketPage'
+import MarketDetailPage from './pages/MarketDetailPage'
+import SessionsPage from './pages/SessionsPage'
+import SessionDetailPage from './pages/SessionDetailPage'
+import ItemSubmitPage from './pages/ItemSubmitPage'
+import WatchlistPage from './pages/WatchlistPage'
+import WalletPage from './pages/WalletPage'
+import NotificationsPage from './pages/NotificationsPage'
+import TransactionRatingPage from './pages/TransactionRatingPage'
 
 function App() {
   const { fetchUserProfile, isLoading } = useAuthStore()
@@ -47,6 +61,118 @@ function App() {
           element={
             <ProtectedRoute adminOnly>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/me/inventory"
+          element={
+            <ProtectedRoute>
+              <InventoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/items/:id"
+          element={
+            <ProtectedRoute>
+              <ItemDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/me/profile"
+          element={
+            <ProtectedRoute>
+              <MyProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users/:id"
+          element={
+            <ProtectedRoute>
+              <UserProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auctions/:id"
+          element={
+            <ProtectedRoute>
+              <AuctionRoomPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market"
+          element={
+            <ProtectedRoute>
+              <MarketPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market/:listingId"
+          element={
+            <ProtectedRoute>
+              <MarketDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sessions"
+          element={
+            <ProtectedRoute>
+              <SessionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sessions/:id"
+          element={
+            <ProtectedRoute>
+              <SessionDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/items/submit"
+          element={
+            <ProtectedRoute>
+              <ItemSubmitPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/me/watchlist"
+          element={
+            <ProtectedRoute>
+              <WatchlistPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/me/wallet"
+          element={
+            <ProtectedRoute>
+              <WalletPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/me/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transactions/:id/rate"
+          element={
+            <ProtectedRoute>
+              <TransactionRatingPage />
             </ProtectedRoute>
           }
         />

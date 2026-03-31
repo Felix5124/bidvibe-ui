@@ -1,6 +1,7 @@
 // src/lib/base.ts
 import axios from 'axios'
 import { Client } from '@stomp/stompjs'
+import { logError, logHttpError } from './logger'
 
 // ======================
 // Constants & Types
@@ -92,8 +93,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    logHttpError('ApiClient', error)
+
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
+      logError('Auth', 'apiClient received 401, clearing session', error)
       localStorage.removeItem('authToken')
       localStorage.removeItem('sb_jwt')
       localStorage.removeItem('user')

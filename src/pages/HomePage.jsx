@@ -24,8 +24,20 @@ export default function HomePage() {
               <Link to="/me/inventory" className="text-gray-700 hover:text-blue-600 font-medium">
                 Kho đồ
               </Link>
-              <Link to="/me/wallet" className="text-gray-700 hover:text-blue-600 font-medium">
-                Ví tiền
+              <Link to="/me/profile" className="text-gray-700 hover:text-blue-600 font-medium">
+                Ho so
+              </Link>
+              {user?.role === 'ADMIN' ? (
+                <Link to="/admin" className="text-gray-700 hover:text-blue-600 font-medium">
+                  Dashboard
+                </Link>
+              ) : (
+                <Link to="/me/wallet" className="text-gray-700 hover:text-blue-600 font-medium">
+                  Ví tiền
+                </Link>
+              )}
+              <Link to="/me/notifications" className="text-gray-700 hover:text-blue-600 font-medium">
+                Thong bao
               </Link>
             </div>
           </div>
@@ -93,6 +105,9 @@ export default function HomePage() {
               <div className="ml-3 text-yellow-500">★★★★★</div>
             </div>
             <p className="text-gray-600 text-sm mt-2">Tài khoản mới</p>
+            <Link to="/transactions/sample-id/rate" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
+              Tao danh gia mau →
+            </Link>
           </div>
         </div>
 
