@@ -61,17 +61,21 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   fetchUserProfile: async () => {
     set({ isLoading: true })
     try {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) {
+      const { data: authData } = await supabase.auth.getSession()
+      if (!authData.session) {
         set({ user: null })
         return
       }
+      
+      // Lấy avatar từ Google session (metadata)
+      const googleAvatar = authData.session.user?.user_metadata?.avatar_url || null;
+
       // Call backend /api/users/me to get user profile
       const response = await apiClient.get('/api/users/me')
-      // The backend returns ApiResponse<UserProfileResponse>
-      // We need to extract the data field from the response
       const userData = response.data?.data || response.data
-      set({ user: userData })
+      
+      // Gộp googleAvatar vào user state để UI sử dụng làm fallback
+      set({ user: { ...userData, googleAvatar } })
     } catch (err: any) {
       logError('AuthStore', 'Failed to fetch user profile', err)
       set({ user: null })
