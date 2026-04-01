@@ -84,10 +84,18 @@ export default function AdminDashboard() {
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false)
 
   const [users, setUsers] = useState([])
+  const [usersMeta, setUsersMeta] = useState(null)
+  const [usersPage, setUsersPage] = useState(0)
   const [items, setItems] = useState([])
+  const [itemsMeta, setItemsMeta] = useState(null)
+  const [itemsPage, setItemsPage] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [txMeta, setTxMeta] = useState(null)
+  const [txPage, setTxPage] = useState(0)
   const [pendingTransactions, setPendingTransactions] = useState([])
   const [sessions, setSessions] = useState([])
+  const [sessionsMeta, setSessionsMeta] = useState(null)
+  const [sessionsPage, setSessionsPage] = useState(0)
   const [adminError, setAdminError] = useState(null)
   const [isLoadingTabData, setIsLoadingTabData] = useState(false)
 
@@ -100,7 +108,7 @@ export default function AdminDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState(null)
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
   const [selectedSessionAuctions, setSelectedSessionAuctions] = useState([])
-  const [isLoadingSessionDetail, setIsLoadingSessionDetail] = useState(false)
+  const [, setIsLoadingSessionDetail] = useState(false)
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false)
   const [approvedItems, setApprovedItems] = useState([])
   const [isLoadingApprovedItems, setIsLoadingApprovedItems] = useState(false)
@@ -161,29 +169,37 @@ export default function AdminDashboard() {
     loadAnalytics()
   }, [loadAnalytics])
 
-  const loadUsers = async () => {
-    const response = await listUsers({}, 0, 20)
-    setUsers(readApiData(response)?.content || [])
+  const loadUsers = async (targetPage = 0) => {
+    const response = await listUsers({}, targetPage, 15)
+    const payload = readApiData(response)
+    setUsers(payload?.content || [])
+    setUsersMeta(payload?.meta || null)
   }
 
-  const loadItems = async () => {
-    const response = await listItems({ status: 'PENDING' }, 0, 20)
-    setItems(readApiData(response)?.content || [])
+  const loadItems = async (targetPage = 0) => {
+    const response = await listItems({ status: 'PENDING' }, targetPage, 15)
+    const payload = readApiData(response)
+    setItems(payload?.content || [])
+    setItemsMeta(payload?.meta || null)
   }
 
-  const loadTransactions = async () => {
+  const loadTransactions = async (targetPage = 0) => {
     const [pagedRes, pendingRes] = await Promise.all([
-      listTransactions({ status: 'PENDING' }, 0, 20),
+      listTransactions({ status: 'PENDING' }, targetPage, 15),
       getPendingTransactions(),
     ])
 
-    setTransactions(readApiData(pagedRes)?.content || [])
+    const payload = readApiData(pagedRes)
+    setTransactions(payload?.content || [])
+    setTxMeta(payload?.meta || null)
     setPendingTransactions(readApiData(pendingRes) || [])
   }
 
-  const loadSessions = async () => {
-    const response = await listSessions({}, 0, 20)
-    setSessions(readApiData(response)?.content || [])
+  const loadSessions = async (targetPage = 0) => {
+    const response = await listSessions({}, targetPage, 10)
+    const payload = readApiData(response)
+    setSessions(payload?.content || [])
+    setSessionsMeta(payload?.meta || null)
   }
 
   const loadApprovedItems = useCallback(async () => {
@@ -199,15 +215,15 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  const loadTabData = useCallback(async () => {
+  const loadTabData = useCallback(async (targetPage = 0) => {
     setIsLoadingTabData(true)
     setAdminError(null)
 
     try {
-      if (tab === 'users') await loadUsers()
-      if (tab === 'items') await loadItems()
-      if (tab === 'transactions') await loadTransactions()
-      if (tab === 'sessions') await loadSessions()
+      if (tab === 'users') await loadUsers(targetPage)
+      if (tab === 'items') await loadItems(targetPage)
+      if (tab === 'transactions') await loadTransactions(targetPage)
+      if (tab === 'sessions') await loadSessions(targetPage)
     } catch (error) {
       console.error('[AdminDashboard] Failed to load admin tab data', { tab, error })
       setAdminError(error?.response?.data?.message || 'Không tải được du lieu admin.')
@@ -217,8 +233,27 @@ export default function AdminDashboard() {
   }, [tab])
 
   useEffect(() => {
-    loadTabData()
-  }, [loadTabData])
+    setUsersPage(0)
+    setItemsPage(0)
+    setTxPage(0)
+    setSessionsPage(0)
+  }, [tab])
+
+  useEffect(() => {
+    if (tab === 'users') loadTabData(usersPage)
+  }, [tab, usersPage, loadTabData])
+
+  useEffect(() => {
+    if (tab === 'items') loadTabData(itemsPage)
+  }, [tab, itemsPage, loadTabData])
+
+  useEffect(() => {
+    if (tab === 'transactions') loadTabData(txPage)
+  }, [tab, txPage, loadTabData])
+
+  useEffect(() => {
+    if (tab === 'sessions') loadTabData(sessionsPage)
+  }, [tab, sessionsPage, loadTabData])
 
   const formatVnd = (value) => {
     if (value == null) return '-'
@@ -351,6 +386,14 @@ export default function AdminDashboard() {
       return
     }
 
+    if (selectedSessionDetail?.type === 'DUTCH') {
+      const minPrice = toOptionalNumber(addAuctionForm.minPrice)
+      if (minPrice == null || minPrice <= 0) {
+        setAdminError('Đấu giá giảm dần (Dutch) yêu cầu giá sàn (minPrice) phải lớn hơn 0.')
+        return
+      }
+    }
+
     const payload = {
       itemId: addAuctionForm.itemId.trim(),
       rarity: selectedApprovedItem?.rarity || 'COMMON',
@@ -376,20 +419,28 @@ export default function AdminDashboard() {
       payload.endTime = new Date(endTimeMs).toISOString()
     }
 
-    await runAdminAction(() => addItemToSession(selectedSessionId, payload), {
-      reloadTab: true,
-      reloadOverview: false,
-    })
-
-    await loadSessionManagement(selectedSessionId)
-    setAddAuctionForm((prev) => ({
-      ...prev,
-      itemId: '',
-      startPrice: '',
-      stepPrice: '',
-      minPrice: '',
-      endTime: '',
-    }))
+    setAdminError(null)
+    try {
+      await addItemToSession(selectedSessionId, payload)
+      await loadSessionManagement(selectedSessionId)
+      setAddAuctionForm((prev) => ({
+        ...prev,
+        itemId: '',
+        startPrice: '',
+        stepPrice: '',
+        minPrice: '',
+        endTime: '',
+      }))
+    } catch (error) {
+      const statusCode = error?.response?.status
+      if (statusCode === 409) {
+        console.warn('[AdminDashboard] Add auction conflict', error?.response?.data)
+        setAdminError(error?.response?.data?.message || 'Vật phẩm đã có trong phiên đấu giá khác.')
+      } else {
+        console.error('[AdminDashboard] Add auction failed', error)
+        setAdminError(error?.response?.data?.message || 'Không thể thêm vật phẩm vào phiên.')
+      }
+    }
   }
 
   const handleLoadAuctionBids = async (auctionId) => {
@@ -469,6 +520,18 @@ export default function AdminDashboard() {
         {users.length === 0 && <p className="text-gray-600">Không có user nao.</p>}
       </div>
 
+      {usersMeta && usersMeta.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <p className="text-sm text-gray-600">
+            Trang {(usersMeta.page || 0) + 1} / {Math.max(usersMeta.totalPages, 1)} — {usersMeta.totalElements || 0} user
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setUsersPage((p) => Math.max(0, p - 1))} disabled={usersPage === 0 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">← Trước</button>
+            <button type="button" onClick={() => setUsersPage((p) => Math.min(usersMeta.totalPages - 1, p + 1))} disabled={usersPage >= usersMeta.totalPages - 1 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Sau →</button>
+          </div>
+        </div>
+      )}
+
       {selectedUserDetail && (
         <div className="mt-5 border border-gray-200 rounded p-4">
           <h3 className="font-semibold text-gray-900 mb-2">Chi tiết người dùng</h3>
@@ -518,6 +581,18 @@ export default function AdminDashboard() {
         ))}
         {items.length === 0 && <p className="text-gray-600">Không có item pending.</p>}
       </div>
+
+      {itemsMeta && itemsMeta.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <p className="text-sm text-gray-600">
+            Trang {(itemsMeta.page || 0) + 1} / {Math.max(itemsMeta.totalPages, 1)} — {itemsMeta.totalElements || 0} vật phẩm
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setItemsPage((p) => Math.max(0, p - 1))} disabled={itemsPage === 0 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">← Trước</button>
+            <button type="button" onClick={() => setItemsPage((p) => Math.min(itemsMeta.totalPages - 1, p + 1))} disabled={itemsPage >= itemsMeta.totalPages - 1 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Sau →</button>
+          </div>
+        </div>
+      )}
 
       {selectedItemDetail && (
         <div className="mt-5 border border-gray-200 rounded p-4">
@@ -569,6 +644,18 @@ export default function AdminDashboard() {
         ))}
         {transactions.length === 0 && <p className="text-gray-600">Không có giao dịch pending.</p>}
       </div>
+
+      {txMeta && txMeta.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <p className="text-sm text-gray-600">
+            Trang {(txMeta.page || 0) + 1} / {Math.max(txMeta.totalPages, 1)} — {txMeta.totalElements || 0} giao dịch
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setTxPage((p) => Math.max(0, p - 1))} disabled={txPage === 0 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">← Trước</button>
+            <button type="button" onClick={() => setTxPage((p) => Math.min(txMeta.totalPages - 1, p + 1))} disabled={txPage >= txMeta.totalPages - 1 || isLoadingTabData} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Sau →</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -641,160 +728,248 @@ export default function AdminDashboard() {
         ))}
         {sessions.length === 0 && <p className="text-gray-600">Không có session nao.</p>}
       </div>
+
+      {sessionsMeta && sessionsMeta.totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <p className="text-sm text-gray-600">
+            Trang {(sessionsMeta.page || 0) + 1} / {Math.max(sessionsMeta.totalPages, 1)} — {sessionsMeta.totalElements || 0} phiên
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
+              disabled={sessionsPage === 0 || isLoadingTabData}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              ← Trước
+            </button>
+            <span className="px-3 py-1.5 text-sm text-gray-700 font-medium">
+              {sessionsPage + 1} / {sessionsMeta.totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSessionsPage((p) => Math.min(sessionsMeta.totalPages - 1, p + 1))}
+              disabled={sessionsPage >= sessionsMeta.totalPages - 1 || isLoadingTabData}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Sau →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
   const renderSessionManagementModal = () => {
     if (!isSessionModalOpen || !selectedSessionId) return null
 
+    const isScheduled = selectedSessionDetail?.status === 'SCHEDULED';
+
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-xl bg-white shadow-xl">
-          <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-5 py-4 flex items-center justify-between">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+        <div className="w-full max-w-7xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden">
+          
+          {/* HEADER */}
+          <div className="flex-none border-b border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Quản lý phòng đấu giá</h3>
-              <p className="text-sm text-gray-600">
-                {selectedSessionDetail
-                  ? `${selectedSessionDetail.title} (${selectedSessionDetail.type}) - ${selectedSessionDetail.status}`
-                  : 'Đang tải thông tin phiên...'}
-              </p>
+              <h3 className="text-xl font-bold text-slate-900">Quản lý phòng đấu giá</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-sm font-medium text-indigo-700">{selectedSessionDetail?.title || 'Đang tải...'}</span>
+                <span className="text-gray-400">•</span>
+                <span className="text-sm text-gray-600">{selectedSessionDetail?.type}</span>
+                <span className="text-gray-400">•</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full border bg-white ${selectedSessionDetail?.status === 'ACTIVE' ? 'border-emerald-300 text-emerald-700' : 'border-slate-300 text-slate-700'}`}>
+                  {selectedSessionDetail?.status}
+                </span>
+              </div>
             </div>
-            <button onClick={closeSessionManagementModal} className="rounded bg-gray-100 px-3 py-2 text-sm text-gray-800 hover:bg-gray-200">
-              Đóng
+            <button onClick={closeSessionManagementModal} className="rounded-lg bg-white border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-sm">
+              Đóng cửa sổ
             </button>
           </div>
 
-          <div className="p-5 space-y-5">
-            {isLoadingSessionDetail ? (
-              <p className="text-sm text-gray-600">Đang tải chi tiết phiên...</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="lg:col-span-2 border border-gray-200 rounded-lg p-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-                      <h4 className="font-semibold text-gray-900">Bước 1: Chọn vật phẩm đã duyệt</h4>
-                      <input
-                        value={approvedItemsKeyword}
-                        onChange={(e) => setApprovedItemsKeyword(e.target.value)}
-                        placeholder="Tìm theo tên hoặc mã vật phẩm"
-                        className="w-full md:w-80 px-3 py-2 border border-gray-300 rounded"
-                      />
-                    </div>
-
-                    {isLoadingApprovedItems ? (
-                      <p className="text-sm text-gray-600">Đang tải danh sách vật phẩm đã duyệt...</p>
-                    ) : filteredApprovedItems.length === 0 ? (
-                      <p className="text-sm text-gray-600">Không có vật phẩm đã duyệt khả dụng.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
-                        {filteredApprovedItems.map((item) => {
-                          const isSelected = addAuctionForm.itemId === item.id
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setAddAuctionForm((prev) => ({ ...prev, itemId: item.id }))}
-                              className={`text-left border rounded p-3 transition ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
-                            >
-                              <p className="font-medium text-gray-900">{item.name}</p>
-                              <p className="text-xs text-gray-600 mt-1">ID: {item.id}</p>
-                              <p className="text-xs text-gray-600 mt-1">Độ hiếm: {item.rarity || 'COMMON'}</p>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">Bước 2: Thiết lập đấu giá</h4>
-
-                    {!selectedApprovedItem ? (
-                      <p className="text-sm text-gray-600">Hãy chọn một vật phẩm đã duyệt trước khi nhập thông số đấu giá.</p>
-                    ) : (
-                      <form onSubmit={handleAddAuctionToSession} className="space-y-3">
-                        <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm text-blue-900">
-                          Đang chọn: {selectedApprovedItem.name} ({selectedApprovedItem.id})
-                        </div>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={addAuctionForm.startPrice}
-                          onChange={(e) => setAddAuctionForm((prev) => ({ ...prev, startPrice: e.target.value }))}
-                          placeholder="Giá khởi điểm"
-                          className="w-full px-3 py-2 border border-gray-300 rounded"
-                          required
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={addAuctionForm.stepPrice}
-                          onChange={(e) => setAddAuctionForm((prev) => ({ ...prev, stepPrice: e.target.value }))}
-                          placeholder="Bước giá"
-                          className="w-full px-3 py-2 border border-gray-300 rounded"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={addAuctionForm.minPrice}
-                          onChange={(e) => setAddAuctionForm((prev) => ({ ...prev, minPrice: e.target.value }))}
-                          placeholder="Giá tối thiểu"
-                          className="w-full px-3 py-2 border border-gray-300 rounded"
-                        />
-                        <input
-                          type="datetime-local"
-                          value={addAuctionForm.endTime}
-                          onChange={(e) => setAddAuctionForm((prev) => ({ ...prev, endTime: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded"
-                        />
-                        <button className="w-full px-3 py-2 rounded bg-blue-600 text-white">Thêm vật phẩm vào phiên</button>
-                      </form>
-                    )}
-                  </div>
+          {/* BODY */}
+          <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+            
+            {/* CỘT TRÁI: DANH SÁCH PHÒNG TRONG PHIÊN (Chiếm phần lớn diện tích) */}
+            <div className={`flex flex-col p-6 overflow-y-auto ${isScheduled ? 'lg:w-2/3 border-r border-slate-200' : 'w-full'}`}>
+              <h4 className="font-bold text-slate-800 mb-4 flex items-center justify-between">
+                <span>Danh sách vật phẩm trong phiên ({selectedSessionAuctions.length})</span>
+                {!isScheduled && (
+                  <span className="text-sm font-normal text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    Phiên đã chốt, không thể thêm vật phẩm mới
+                  </span>
+                )}
+              </h4>
+              
+              {selectedSessionAuctions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                  <svg className="w-12 h-12 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                  <p className="text-slate-600 font-medium">Phiên này chưa có vật phẩm nào</p>
+                  {isScheduled && <p className="text-sm text-slate-500 mt-1">Hãy chọn vật phẩm từ danh sách bên phải để thêm vào phiên.</p>}
                 </div>
-
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-3">Danh sách phòng trong phiên</h4>
-                  <div className="space-y-3">
-                    {selectedSessionAuctions.map((auction) => (
-                      <div key={auction.id} className="border border-gray-200 rounded p-3">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              ) : (
+                <div className="space-y-4">
+                  {selectedSessionAuctions.map((auction) => (
+                    <div key={auction.id} className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden transition-all hover:shadow-md">
+                      <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          {/* Thumbnail giả lập nếu ko có ảnh */}
+                          <div className="w-12 h-12 rounded bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                            <span className="text-xl">📦</span>
+                          </div>
                           <div>
-                            <p className="font-medium text-gray-900">{auction.item?.name || auction.id}</p>
-                            <p className="text-sm text-gray-600">{auction.status} | Giá hiện tại: {formatVnd(auction.currentPrice)}</p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button onClick={() => handleLoadAuctionBids(auction.id)} className="px-2 py-1 text-sm rounded bg-slate-700 text-white">Tải lượt giá</button>
-                            <button onClick={() => runAdminAction(() => resetAuctionTimer(auction.id), { reloadTab: false, reloadOverview: false })} className="px-2 py-1 text-sm rounded bg-cyan-700 text-white">Gia hạn thời gian</button>
-                            <button
-                              onClick={() => runAdminAction(() => removeAuctionFromSession(selectedSessionId, auction.id), { reloadTab: false, reloadOverview: false }).then(() => loadSessionManagement(selectedSessionId))}
-                              disabled={selectedSessionDetail?.status !== 'SCHEDULED'}
-                              className="px-2 py-1 text-sm rounded bg-red-700 text-white disabled:opacity-50"
-                            >
-                              Gỡ khỏi phiên
-                            </button>
+                            <p className="font-bold text-slate-900">{auction.item?.name || 'Vật phẩm chưa đặt tên'}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-sm text-slate-600">Trạng thái: <strong className="text-slate-800">{auction.status}</strong></span>
+                              <span className="text-slate-300">|</span>
+                              <span className="text-sm text-slate-600">Giá: <strong className="text-emerald-600">{formatVnd(auction.currentPrice)}</strong></span>
+                            </div>
                           </div>
                         </div>
-
-                        {Array.isArray(auctionBidsByAuction[auction.id]) && auctionBidsByAuction[auction.id].length > 0 && (
-                          <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
-                            {auctionBidsByAuction[auction.id].map((bid) => (
-                              <div key={bid.id} className="flex items-center justify-between text-sm border border-gray-200 rounded px-2 py-1">
-                                <span>{bid.bidder?.nickname || 'Unknown'} - {formatVnd(bid.amount)}</span>
-                                <button onClick={() => handleRemoveBid(auction.id, bid.id)} className="px-2 py-1 rounded bg-rose-700 text-white">Xóa lượt giá</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        
+                        <div className="flex flex-wrap gap-2 shrink-0">
+                          <button onClick={() => handleLoadAuctionBids(auction.id)} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors">
+                            Lịch sử giá
+                          </button>
+                          <button onClick={() => runAdminAction(() => resetAuctionTimer(auction.id), { reloadTab: false, reloadOverview: false })} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors">
+                            + Thời gian
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await removeAuctionFromSession(selectedSessionId, auction.id)
+                                await loadSessionManagement(selectedSessionId)
+                              } catch (error) {
+                                console.error('[AdminDashboard] Remove auction failed', error)
+                                setAdminError(error?.response?.data?.message || 'Không thể gỡ bỏ vật phẩm.')
+                              }
+                            }}
+                            disabled={!isScheduled}
+                            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Gỡ bỏ
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                    {selectedSessionAuctions.length === 0 && <p className="text-sm text-gray-600">Phiên này chưa có phòng đấu giá.</p>}
-                  </div>
+
+                      {/* KHU VỰC HIỂN THỊ BIDS (Chỉ hiện khi bấm tải lịch sử giá) */}
+                      {Array.isArray(auctionBidsByAuction[auction.id]) && (
+                        <div className="border-t border-slate-100 bg-slate-50 p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-bold text-slate-700">Lịch sử trả giá ({auctionBidsByAuction[auction.id].length})</h5>
+                            <button onClick={() => setAuctionBidsByAuction(prev => ({...prev, [auction.id]: null}))} className="text-xs text-slate-500 hover:text-slate-700 underline">Đóng</button>
+                          </div>
+                          {auctionBidsByAuction[auction.id].length === 0 ? (
+                            <p className="text-sm text-slate-500 italic">Chưa có ai trả giá.</p>
+                          ) : (
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                              {auctionBidsByAuction[auction.id].map((bid) => (
+                                <div key={bid.id} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-slate-800">{bid.bidder?.nickname || 'Ẩn danh'}</span>
+                                    {bid.proxy && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Auto</span>}
+                                    <span className="text-slate-400 mx-1">-</span>
+                                    <span className="font-bold text-emerald-600">{formatVnd(bid.amount)}</span>
+                                  </div>
+                                  <button onClick={() => handleRemoveBid(auction.id, bid.id)} className="px-2.5 py-1 rounded-md bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-medium transition-colors">
+                                    Xóa lượt giá
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </>
+              )}
+            </div>
+
+            {/* CỘT PHẢI: THÊM VẬT PHẨM (CHỈ HIỆN KHI SCHEDULED) */}
+            {isScheduled && (
+              <div className="flex flex-col bg-slate-50 lg:w-1/3 border-l border-slate-200">
+                <div className="p-5 border-b border-slate-200 bg-white">
+                  <h4 className="font-bold text-slate-800 mb-3">Kho vật phẩm đã duyệt</h4>
+                  <input
+                    value={approvedItemsKeyword}
+                    onChange={(e) => setApprovedItemsKeyword(e.target.value)}
+                    placeholder="🔍 Tìm tên hoặc mã vật phẩm..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Danh sách chọn đồ */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-50/50">
+                  {isLoadingApprovedItems ? (
+                    <p className="text-sm text-slate-500 text-center py-4">Đang tải kho...</p>
+                  ) : filteredApprovedItems.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-4">Không có vật phẩm phù hợp.</p>
+                  ) : (
+                    filteredApprovedItems.map((item) => {
+                      const isSelected = addAuctionForm.itemId === item.id
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setAddAuctionForm((prev) => ({ ...prev, itemId: item.id }))}
+                          className={`w-full text-left border rounded-xl p-3 transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50 shadow-sm ring-1 ring-indigo-500' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'}`}
+                        >
+                          <p className="font-bold text-slate-800 truncate">{item.name}</p>
+                          <div className="flex justify-between items-center mt-1.5">
+                            <span className="text-[11px] text-slate-500 font-mono">{item.id.split('-')[0]}...</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                              {item.rarity || 'COMMON'}
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+
+                {/* Form thiết lập giá (Luôn bám ở dưới cùng cột phải) */}
+                <div className="p-5 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)]">
+                  <h4 className="font-bold text-slate-800 mb-3">Thiết lập cấu hình</h4>
+                  {!selectedApprovedItem ? (
+                    <div className="text-sm text-slate-500 text-center py-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg">
+                      Vui lòng chọn 1 vật phẩm ở trên
+                    </div>
+                  ) : (
+                    <form onSubmit={handleAddAuctionToSession} className="space-y-3">
+                      <div className="text-sm font-medium text-indigo-700 truncate bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100">
+                        {selectedApprovedItem.name}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giá khởi điểm *</label>
+                          <input type="number" min="1" value={addAuctionForm.startPrice} onChange={(e) => setAddAuctionForm(p => ({ ...p, startPrice: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Bước giá</label>
+                          <input type="number" min="0" value={addAuctionForm.stepPrice} onChange={(e) => setAddAuctionForm(p => ({ ...p, stepPrice: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giá sàn (Dutch)</label>
+                          <input type="number" min="0" value={addAuctionForm.minPrice} onChange={(e) => setAddAuctionForm(p => ({ ...p, minPrice: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giờ kết thúc</label>
+                          <input type="datetime-local" value={addAuctionForm.endTime} onChange={(e) => setAddAuctionForm(p => ({ ...p, endTime: e.target.value }))} className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                      </div>
+                      
+                      <button type="submit" className="w-full mt-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                        Thêm vào phiên
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -1,5 +1,5 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/AppLayout'
@@ -24,16 +24,28 @@ import TransactionRatingPage from './pages/TransactionRatingPage'
 
 function App() {
   const { fetchUserProfile, isLoading } = useAuthStore()
+  const [hasTriedInitialAuth, setHasTriedInitialAuth] = useState(false)
 
-  // Fetch user profile on mount if token exists
+  // Try to fetch user profile once on mount if we have a token
   useEffect(() => {
-    const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
-    if (token) {
-      fetchUserProfile()
+    const initAuth = async () => {
+      const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
+      if (token && !hasTriedInitialAuth) {
+        try {
+          await fetchUserProfile()
+        } catch (error) {
+          // Silently fail - ProtectedRoute will handle it
+          console.debug('Initial auth failed:', error)
+        }
+      }
+      setHasTriedInitialAuth(true)
     }
-  }, [fetchUserProfile])
 
-  if (isLoading) {
+    initAuth()
+  }, [fetchUserProfile, hasTriedInitialAuth])
+
+  // Show loading only during initial auth attempt
+  if (isLoading && !hasTriedInitialAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

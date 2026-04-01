@@ -272,7 +272,7 @@ export default function AuctionRoomPage() {
                     <p className="font-semibold text-slate-800 mt-1">{formatDateTime(auction.endTime)}</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    { getStatusMeta(auction.status).label == "ENDED" ? <p className="text-slate-500">Người chiến thắng</p> : <p className="text-slate-500">Người thắng tạm thời</p>}
+                    { getStatusMeta(auction.status).label === "ENDED" ? <p className="text-slate-500">Người chiến thắng</p> : <p className="text-slate-500">Người thắng tạm thời</p>}
                     <p className="font-semibold text-slate-800 mt-1">{auction.winner?.nickname || '-'}</p>
                   </div>
                 </div>

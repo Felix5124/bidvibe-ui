@@ -18,19 +18,21 @@ const TYPE_LABEL = {
   SEALED: 'Đấu giá kín',
 }
 
+const PAGE_SIZE_OPTIONS = [6, 12, 24, 48]
+
 export default function SessionsPage() {
   const [sessions, setSessions] = useState([])
   const [meta, setMeta] = useState(null)
   const [page, setPage] = useState(0)
+  const [size, setSize] = useState(12)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Load auction sessions list for current page.
-  const loadSessions = useCallback(async (targetPage) => {
+  const loadSessions = useCallback(async (targetPage, targetSize) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await listSessions({}, targetPage, 12)
+      const response = await listSessions({}, targetPage, targetSize)
       const payload = readApiData(response)
       setSessions(payload?.content || [])
       setMeta(payload?.meta || null)
@@ -43,8 +45,13 @@ export default function SessionsPage() {
   }, [])
 
   useEffect(() => {
-    loadSessions(page)
-  }, [loadSessions, page])
+    loadSessions(page, size)
+  }, [loadSessions, page, size])
+
+  const handleSizeChange = (newSize) => {
+    setSize(newSize)
+    setPage(0)
+  }
 
   const getStatusMeta = (status) => STATUS_META[status] || { label: status || '-', className: 'bg-gray-100 text-gray-700 border-gray-200' }
 
@@ -106,24 +113,51 @@ export default function SessionsPage() {
         )}
 
         {meta && (
-          <div className="mt-6 flex items-center justify-between">
-            <p className="text-sm text-gray-600">Trang {meta.page + 1} / {Math.max(meta.totalPages, 1)}</p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">Hiển thị:</span>
+              <div className="flex gap-1">
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => handleSizeChange(option)}
+                    className={`px-3 py-1 text-sm rounded-lg transition ${
+                      size === option
+                        ? 'bg-indigo-600 text-white font-medium'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              <span className="text-sm text-gray-600">/ trang</span>
+            </div>
+            
+            <p className="text-sm text-gray-600">
+              Trang {page + 1} / {Math.max(meta.totalPages || 1, 1)} — {meta.totalElements || 0} phiên
+            </p>
+            
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60"
+                disabled={page === 0 || loading}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                Trang trước
+                ← Trước
               </button>
+              <span className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
+                {page + 1} / {Math.max(meta.totalPages || 1, 1)}
+              </span>
               <button
                 type="button"
-                onClick={() => setPage((p) => (meta.totalPages > p + 1 ? p + 1 : p))}
-                disabled={meta.totalPages <= page + 1}
-                className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60"
+                onClick={() => setPage((p) => Math.min((meta.totalPages || 1) - 1, p + 1))}
+                disabled={page >= (meta.totalPages || 1) - 1 || loading}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                Trang sau
+                Sau →
               </button>
             </div>
           </div>

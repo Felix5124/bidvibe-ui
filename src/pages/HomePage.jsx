@@ -1,6 +1,32 @@
 ﻿import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { getBalance } from '../api/wallet'
+
+const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 export default function HomePage() {
+  const [balance, setBalance] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadBalance = async () => {
+      try {
+        const response = await getBalance()
+        setBalance(readApiData(response))
+      } catch (err) {
+        console.error('[HomePage] Failed to load wallet balance', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadBalance()
+  }, [])
+
+  const formatVnd = (value) => {
+    if (value == null) return '-'
+    return new Intl.NumberFormat('vi-VN').format(Number(value)) + ' ₫'
+  }
+
   return (
     <div className="bg-gray-50">
       {/* Main Content */}
@@ -31,7 +57,11 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl shadow">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Số dư ví</h3>
-            <p className="text-3xl font-bold text-green-600">0 ₫</p>
+            {loading ? (
+              <p className="text-3xl font-bold text-gray-400">Đang tải...</p>
+            ) : (
+              <p className="text-3xl font-bold text-green-600">{formatVnd(balance?.totalBalance)}</p>
+            )}
             <Link to="/me/wallet" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
               Nạp tiền ngay →
             </Link>

@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 export default function ProtectedRoute({ children, adminOnly = false }) {
   const { user, isLoading } = useAuthStore()
 
+  // Show loading while auth store is loading
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -15,10 +16,12 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
     )
   }
 
+  // If no user, redirect to login
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
+  // Check admin permission if required
   if (adminOnly && user.role !== 'ADMIN') {
     return <Navigate to="/" replace />
   }
