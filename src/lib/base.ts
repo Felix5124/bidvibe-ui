@@ -95,16 +95,6 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     logHttpError('ApiClient', error)
-
-    // Handle 401 - redirect to login
-    if (error.response?.status === 401) {
-      logError('Auth', 'apiClient received 401, clearing session', error)
-      sessionStorage.removeItem('authToken')
-      sessionStorage.removeItem('sb_jwt')
-      sessionStorage.removeItem('user')
-      window.dispatchEvent(new CustomEvent('auth:logout'))
-      window.location.href = '/login'
-    }
     return Promise.reject(error)
   }
 )

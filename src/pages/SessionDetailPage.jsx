@@ -26,7 +26,6 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Load both session metadata and auction list in this session.
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
