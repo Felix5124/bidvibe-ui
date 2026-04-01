@@ -38,3 +38,25 @@ supabase.auth.onAuthStateChange((event, session) => {
     sessionStorage.removeItem('user')
   }
 })
+
+// Helper to upload file to Supabase Storage
+export const uploadFileToSupabase = async (bucket: string, file: File): Promise<string> => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+  
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    console.error('Supabase upload error:', error)
+    throw error
+  }
+
+  // Lấy public URL
+  const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
+  return data.publicUrl
+}

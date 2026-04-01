@@ -44,6 +44,7 @@ export interface User {
   role?: 'USER' | 'ADMIN'
   isBanned?: boolean
   isMuted?: boolean
+  googleAvatar?: string
 }
 
 // Auction tối thiểu cho FE
