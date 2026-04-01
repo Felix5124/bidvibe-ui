@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getWatchlist, removeFromWatchlist, toggleWatchlist } from '../api/users'
 
@@ -23,7 +23,7 @@ export default function WatchlistPage() {
       setMeta(payload?.meta || null)
     } catch (err) {
       console.error('[WatchlistPage] Failed to load watchlist', err)
-      setError(err?.response?.data?.message || 'Khong tai duoc watchlist.')
+      setError(err?.response?.data?.message || 'Không tải được watchlist.')
     } finally {
       setLoading(false)
     }
@@ -40,7 +40,7 @@ export default function WatchlistPage() {
       await loadData(page)
     } catch (err) {
       console.error('[WatchlistPage] Failed to remove watchlist item', err)
-      setError(err?.response?.data?.message || 'Xoa khoi watchlist that bai.')
+      setError(err?.response?.data?.message || 'Xoa khoi watchlist thất bại.')
     }
   }
 
@@ -55,7 +55,7 @@ export default function WatchlistPage() {
       setPage(0)
     } catch (err) {
       console.error('[WatchlistPage] Failed to toggle watchlist item', err)
-      setError(err?.response?.data?.message || 'Them vao watchlist that bai.')
+      setError(err?.response?.data?.message || 'Them vao watchlist thất bại.')
     }
   }
 
@@ -63,15 +63,15 @@ export default function WatchlistPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Watchlist</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Ve trang chu</Link>
+          <h1 className="text-3xl font-bold text-gray-900">Danh sách theo dõi</h1>
+          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
 
         <form onSubmit={handleAddById} className="mb-5 bg-white border border-gray-200 rounded-xl p-4 flex gap-2">
           <input
             value={manualItemId}
             onChange={(e) => setManualItemId(e.target.value)}
-            placeholder="Nhap itemId de them watchlist"
+            placeholder="Nhập itemId de them watchlist"
             className="flex-1 px-3 py-2 border border-gray-300 rounded"
           />
           <button type="submit" className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Them</button>
@@ -80,7 +80,7 @@ export default function WatchlistPage() {
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
         ) : items.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Watchlist trong.</div>
         ) : (
@@ -88,10 +88,10 @@ export default function WatchlistPage() {
             {items.map((item) => (
               <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                 <h2 className="text-lg font-semibold text-gray-900">{item.name}</h2>
-                <p className="text-sm text-gray-700 mt-2">{item.description || 'Khong co mo ta.'}</p>
+                <p className="text-sm text-gray-700 mt-2">{item.description || 'Không có mo ta.'}</p>
                 <div className="mt-4 flex gap-2">
-                  <Link to={`/items/${item.id}`} className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Chi tiet</Link>
-                  <button type="button" onClick={() => handleRemove(item.id)} className="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Bo theo doi</button>
+                  <Link to={`/items/${item.id}`} className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Chi tiết</Link>
+                  <button type="button" onClick={() => handleRemove(item.id)} className="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Bỏ theo dõi</button>
                 </div>
               </div>
             ))}
@@ -111,3 +111,4 @@ export default function WatchlistPage() {
     </div>
   )
 }
+

@@ -5,6 +5,7 @@
 // POST /api/admin/transactions/{id}/reject-deposit - Reject deposit
 // POST /api/admin/transactions/{id}/approve-withdraw - Approve withdrawal
 // POST /api/admin/transactions/{id}/reject-withdraw - Reject withdrawal
+// POST /api/admin/transactions/approve - Legacy bulk approve/reject by body
 // POST /api/admin/transactions/{id}/approve - Approve transaction
 // POST /api/admin/transactions/{id}/reject - Reject transaction
 
@@ -67,6 +68,20 @@ export const rejectWithdraw = (transactionId) => {
 }
 
 /**
+ * Legacy bulk transaction processing endpoint
+ * @param {string} transactionId - Transaction ID
+ * @param {string} newStatus - COMPLETED | CANCELLED
+ * @param {string} adminNote - Optional admin note
+ */
+export const processTransaction = (transactionId, newStatus, adminNote) => {
+  return api.post('/admin/transactions/approve', {
+    transactionId,
+    newStatus,
+    adminNote,
+  })
+}
+
+/**
  * Generic approve transaction
  * @param {string} transactionId - Transaction ID
  */
@@ -89,6 +104,7 @@ export default {
   rejectDeposit,
   approveWithdraw,
   rejectWithdraw,
+  processTransaction,
   approveTransaction,
   rejectTransaction,
 }

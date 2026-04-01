@@ -1,15 +1,16 @@
-// Admin Auction Session Management APIs
+﻿// Admin Auction Session Management APIs
 // POST   /api/admin/sessions - Create auction session
 // GET    /api/admin/sessions - List sessions (paginated, filterable)
 // GET    /api/admin/sessions/{id} - Get session details
 // GET    /api/admin/sessions/{id}/auctions - Get auctions in session
-// POST   /api/admin/sessions/{id}/auctions - Add item to session
+// POST   /api/admin/sessions/{id}/auctions - Thêm vật phẩm to session
 // DELETE /api/admin/sessions/{id}/auctions/{auctionId} - Remove auction from session
 // POST   /api/admin/sessions/{id}/start - Activate session
 // POST   /api/admin/sessions/{id}/pause - Pause session
 // POST   /api/admin/sessions/{id}/resume - Resume session
 // POST   /api/admin/sessions/{id}/stop - Stop session
 // POST   /api/admin/auctions/{id}/reset-timer - Reset auction timer
+// DELETE /api/admin/auctions/{auctionId}/bids/{bidId} - Remove bid from auction
 
 import api from './baseApi'
 
@@ -55,7 +56,7 @@ export const getSessionAuctions = (sessionId) => {
 }
 
 /**
- * Add item to auction session
+ * Thêm vật phẩm to auction session
  * @param {string} sessionId - Session ID
  * @param {Object} data - {itemId, startPrice, endPrice, duration, ...}
  */
@@ -112,6 +113,15 @@ export const resetAuctionTimer = (auctionId) => {
   return api.post(`/admin/auctions/${auctionId}/reset-timer`)
 }
 
+/**
+ * Remove a bid from auction history (admin moderation)
+ * @param {string} auctionId - Auction ID
+ * @param {string} bidId - Bid ID
+ */
+export const removeAuctionBid = (auctionId, bidId) => {
+  return api.delete(`/admin/auctions/${auctionId}/bids/${bidId}`)
+}
+
 export default {
   createSession,
   listSessions,
@@ -124,4 +134,6 @@ export default {
   resumeSession,
   stopSession,
   resetAuctionTimer,
+  removeAuctionBid,
 }
+

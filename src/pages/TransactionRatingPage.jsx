@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { createRating } from '../api/ratings'
 
@@ -38,7 +38,7 @@ export default function TransactionRatingPage() {
       setSuccess('Gui danh gia thanh cong.')
     } catch (err) {
       console.error('[TransactionRatingPage] Failed to create rating', err)
-      setError(err?.response?.data?.message || 'Tao danh gia that bai.')
+      setError(err?.response?.data?.message || 'Tạo đánh giá thất bại.')
     } finally {
       setSaving(false)
     }
@@ -48,8 +48,8 @@ export default function TransactionRatingPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Tao danh gia giao dich</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Ve trang chu</Link>
+          <h1 className="text-3xl font-bold text-gray-900">Tạo đánh giá giao dịch</h1>
+          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
 
         <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 text-sm text-gray-700">
@@ -100,3 +100,4 @@ export default function TransactionRatingPage() {
     </div>
   )
 }
+

@@ -1,8 +1,8 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { submitItem } from '../api/items'
 
-const RARITY_OPTIONS = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY']
+const RARITY_OPTIONS = ['COMMON', 'RARE', 'LEGENDARY']
 
 export default function ItemSubmitPage() {
   const navigate = useNavigate()
@@ -40,11 +40,11 @@ export default function ItemSubmitPage() {
         imageUrls,
       })
 
-      setSuccess('Gui ky gui thanh cong, vui long cho duyet.')
+      setSuccess('Gửi ký gửi thành công, vui lòng chờ duyệt.')
       setTimeout(() => navigate('/me/inventory'), 1200)
     } catch (err) {
       console.error('[ItemSubmitPage] Failed to submit item', err)
-      setError(err?.response?.data?.message || 'Ky gui vat pham that bai.')
+      setError(err?.response?.data?.message || 'Ký gửi vat pham thất bại.')
     } finally {
       setSaving(false)
     }
@@ -54,8 +54,8 @@ export default function ItemSubmitPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Ky gui vat pham</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Ve trang chu</Link>
+          <h1 className="text-3xl font-bold text-gray-900">Ký gửi vật phẩm</h1>
+          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
@@ -63,12 +63,12 @@ export default function ItemSubmitPage() {
 
         <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Ten vat pham</label>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Tên vật phẩm</label>
             <input id="name" name="name" value={form.name} onChange={onChange} required className="w-full px-3 py-2 border border-gray-300 rounded-md" />
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Mo ta</label>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
             <textarea id="description" name="description" value={form.description} onChange={onChange} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-md" />
           </div>
 
@@ -95,10 +95,11 @@ export default function ItemSubmitPage() {
           </div>
 
           <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
-            {saving ? 'Dang gui...' : 'Gui ky gui'}
+            {saving ? 'Đang gửi...' : 'Gửi ký gửi'}
           </button>
         </form>
       </div>
     </div>
   )
 }
+

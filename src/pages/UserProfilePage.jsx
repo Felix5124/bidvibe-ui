@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getUserProfile, getUserRatings } from '../api/users'
 
@@ -33,7 +33,7 @@ export default function UserProfilePage() {
         setRatingsMeta(ratingsPayload?.meta || null)
       } catch (err) {
         console.error('[UserProfilePage] Failed to load public profile/ratings', err)
-        setError(err?.response?.data?.message || 'Khong tai duoc profile cong khai.')
+        setError(err?.response?.data?.message || 'Không tải được profile cong khai.')
       } finally {
         setLoading(false)
       }
@@ -48,13 +48,13 @@ export default function UserProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Ho so cong khai</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Hồ sơ công khai</h1>
           <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">
-            Ve trang chu
+            Về trang chủ
           </Link>
         </div>
 
-        {loading && <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>}
+        {loading && <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>}
 
         {!loading && error && (
           <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700">{error}</div>
@@ -68,15 +68,15 @@ export default function UserProfilePage() {
                 <p>Email: {profile.email || '-'}</p>
                 <p>Uy tin: {profile.reputationScore ?? '-'}</p>
                 <p>So dien thoai: {profile.phone || '-'}</p>
-                <p>Dia chi: {profile.address || '-'}</p>
+                <p>Địa chỉ: {profile.address || '-'}</p>
               </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Danh gia ({ratingsMeta?.totalElements ?? ratings.length})</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Đánh giá ({ratingsMeta?.totalElements ?? ratings.length})</h3>
 
               {ratings.length === 0 ? (
-                <p className="text-gray-600">Chua co danh gia nao.</p>
+                <p className="text-gray-600">Chưa có danh gia nao.</p>
               ) : (
                 <div className="space-y-3">
                   {ratings.map((rating) => (
@@ -85,7 +85,7 @@ export default function UserProfilePage() {
                         <p className="font-medium text-gray-900">Tu: {rating.fromUser?.nickname || 'An danh'}</p>
                         <p className="text-sm text-yellow-600">{rating.stars}/5</p>
                       </div>
-                      <p className="text-gray-700 mt-2">{rating.comment || 'Khong co binh luan.'}</p>
+                      <p className="text-gray-700 mt-2">{rating.comment || 'Không có binh luan.'}</p>
                       <p className="text-xs text-gray-500 mt-2">
                         {rating.createdAt ? new Date(rating.createdAt).toLocaleString('vi-VN') : ''}
                       </p>

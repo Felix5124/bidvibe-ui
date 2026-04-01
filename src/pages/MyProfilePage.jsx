@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyProfile, updateMyProfile } from '../api/users'
 
@@ -40,7 +40,7 @@ export default function MyProfilePage() {
         })
       } catch (err) {
         console.error('[MyProfilePage] Failed to load profile', err)
-        setError(err?.response?.data?.message || 'Khong tai duoc profile.')
+        setError(err?.response?.data?.message || 'Không tải được profile.')
       } finally {
         setLoading(false)
       }
@@ -68,7 +68,7 @@ export default function MyProfilePage() {
       setMessage('Cap nhat profile thanh cong.')
     } catch (err) {
       console.error('[MyProfilePage] Failed to update profile', err)
-      setError(err?.response?.data?.message || 'Cap nhat profile that bai.')
+      setError(err?.response?.data?.message || 'Cap nhat profile thất bại.')
     } finally {
       setSaving(false)
     }
@@ -78,14 +78,14 @@ export default function MyProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Ho so cua toi</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Hồ sơ của tôi</h1>
           <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">
-            Ve trang chu
+            Về trang chủ
           </Link>
         </div>
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
         ) : (
           <>
             {error && (
@@ -96,17 +96,17 @@ export default function MyProfilePage() {
             )}
 
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-3">Thong tin tai khoan</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-3">Thông tin tài khoản</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
                 <p>Email: {profile?.email || '-'}</p>
-                <p>Role: {profile?.role || '-'}</p>
+                <p>Vai trò: {profile?.role || '-'}</p>
                 <p>Uy tin: {profile?.reputationScore ?? '-'}</p>
-                <p>Ngay tao: {createdAtText}</p>
+                <p>Ngày tạo: {createdAtText}</p>
               </div>
             </div>
 
             <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">Cap nhat profile</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Cập nhật hồ sơ</h2>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="nickname">
@@ -149,7 +149,7 @@ export default function MyProfilePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="address">
-                  Dia chi
+                  Địa chỉ
                 </label>
                 <textarea
                   id="address"

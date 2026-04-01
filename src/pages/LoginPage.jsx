@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 
@@ -36,7 +36,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex font-sans bg-gray-50">
       {/* Cột trái: Branding & Illustration (Giữ nguyên phong cách Vibe nhưng làm mượt hơn) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-indigo-700 via-purple-700 to-pink-600 relative overflow-hidden">
         {/* Pattern Background */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40 mix-blend-overlay"></div>
         
@@ -54,8 +54,8 @@ export default function LoginPage() {
             <span className="text-4xl font-extrabold tracking-tight">BidVibe</span>
           </div>
           <h1 className="text-5xl font-extrabold mb-6 leading-tight">
-            Discover & Bid on<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-200 to-white">Unique Items</span>
+            Khám phá và đấu giá<br />
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-pink-200 to-white">những vật phẩm độc đáo</span>
           </h1>
           <p className="text-xl text-indigo-100 mb-10 max-w-md font-light leading-relaxed">
             Join thousands of buyers and sellers on the premier online auction platform. Find rare treasures and great deals every day.
@@ -87,7 +87,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+            <div className="w-12 h-12 bg-linear-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
               <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
@@ -98,7 +98,7 @@ export default function LoginPage() {
           <div className="bg-white rounded-3xl shadow-2xl shadow-gray-200/50 p-8 sm:p-10 border border-gray-100">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-                {isEmailMode ? 'Welcome back' : 'Sign in to BidVibe'}
+                {isEmailMode ? 'Chào mừng bạn quay lại' : 'Đăng nhập vào BidVibe'}
               </h2>
               <p className="mt-3 text-gray-500">
                 {isEmailMode 
@@ -216,7 +216,7 @@ export default function LoginPage() {
 
             {error && (
               <div className="mt-5 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <p className="text-sm text-red-600 font-medium">{error}</p>
               </div>
             )}

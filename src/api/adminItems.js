@@ -1,4 +1,4 @@
-// Admin Item Management APIs
+﻿// Admin Item Management APIs
 // GET  /api/admin/items - List items (paginated, filterable by status)
 // GET  /api/admin/items/{id} - Get item details
 // POST /api/admin/items/{id}/approve - Approve item
@@ -24,7 +24,7 @@ export const listItems = (filters = {}, page = 0, size = 20) => {
 
 /**
  * Get item details
- * @param {string} itemId - Item ID
+ * @param {string} itemId - Mã vật phẩm
  */
 export const getItemDetail = (itemId) => {
   return api.get(`/admin/items/${itemId}`)
@@ -32,7 +32,7 @@ export const getItemDetail = (itemId) => {
 
 /**
  * Approve an item and add it to auction
- * @param {string} itemId - Item ID
+ * @param {string} itemId - Mã vật phẩm
  * @param {Object} data - {rarity: 'COMMON'|'RARE'|'LEGENDARY'|..., tags: []}
  */
 export const approveItem = (itemId, data) => {
@@ -41,7 +41,7 @@ export const approveItem = (itemId, data) => {
 
 /**
  * Reject an item
- * @param {string} itemId - Item ID
+ * @param {string} itemId - Mã vật phẩm
  * @param {Object} data - {reason: 'string'}
  */
 export const rejectItem = (itemId, data) => {
@@ -54,3 +54,4 @@ export default {
   approveItem,
   rejectItem,
 }
+

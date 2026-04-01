@@ -1,4 +1,4 @@
-// Item Management APIs
+﻿// Item Management APIs
 // POST /api/items - Submit item for approval
 // GET  /api/items/me/inventory - Get user's inventory (paginated)
 // GET  /api/items/{id} - Get item details
@@ -28,7 +28,7 @@ export const getInventory = (page = 0, size = 20) => {
 
 /**
  * Get item details
- * @param {string} itemId - Item ID
+ * @param {string} itemId - Mã vật phẩm
  */
 export const getItemDetail = (itemId) => {
   return api.get(`/items/${itemId}`)
@@ -36,7 +36,7 @@ export const getItemDetail = (itemId) => {
 
 /**
  * Confirm receipt of an item
- * @param {string} itemId - Item ID
+ * @param {string} itemId - Mã vật phẩm
  */
 export const confirmReceipt = (itemId) => {
   return api.patch(`/items/${itemId}/confirm-receipt`)
@@ -57,3 +57,4 @@ export default {
   confirmReceipt,
   listOnMarket,
 }
+

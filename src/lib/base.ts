@@ -1,4 +1,4 @@
-// src/lib/base.ts
+﻿// src/lib/base.ts
 import axios from 'axios'
 import { Client } from '@stomp/stompjs'
 import { logError, logHttpError } from './logger'
@@ -67,10 +67,10 @@ export const apiClient = axios.create({
   withCredentials: true,
 })
 
-// Lấy JWT từ localStorage hoặc cookie
+// Lấy JWT từ sessionStorage hoặc cookie
 const getJwt = (): string | null => {
-  // Ưu tiên localStorage
-  const fromStorage = localStorage.getItem('sb_jwt')
+  // Ưu tiên sessionStorage
+  const fromStorage = sessionStorage.getItem('sb_jwt')
   if (fromStorage) return fromStorage
 
   // Fallback cookie (ví dụ: sb_jwt=...)
@@ -98,9 +98,9 @@ apiClient.interceptors.response.use(
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
       logError('Auth', 'apiClient received 401, clearing session', error)
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('sb_jwt')
-      localStorage.removeItem('user')
+      sessionStorage.removeItem('authToken')
+      sessionStorage.removeItem('sb_jwt')
+      sessionStorage.removeItem('user')
       window.dispatchEvent(new CustomEvent('auth:logout'))
       window.location.href = '/login'
     }

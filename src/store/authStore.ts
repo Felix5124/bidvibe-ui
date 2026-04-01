@@ -44,10 +44,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ isLoading: true })
     try {
       await supabase.auth.signOut()
-      // Ensure local storage cleaned up (Supabase listener may do it, but just in case)
-      localStorage.removeItem('sb_jwt')
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('user')
+      // Ensure session storage cleaned up (Supabase listener may do it, but just in case)
+      sessionStorage.removeItem('sb_jwt')
+      sessionStorage.removeItem('authToken')
+      sessionStorage.removeItem('user')
       set({ user: null })
     } catch (err: any) {
       logError('AuthStore', 'Logout failed', err)

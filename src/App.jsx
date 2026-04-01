@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
+import AppLayout from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import HomePage from './pages/HomePage'
@@ -26,7 +27,7 @@ function App() {
 
   // Fetch user profile on mount if token exists
   useEffect(() => {
-    const token = localStorage.getItem('sb_jwt') || localStorage.getItem('authToken')
+    const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
     if (token) {
       fetchUserProfile()
     }
@@ -46,136 +47,140 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <HomePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute adminOnly>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/me/inventory"
-          element={
-            <ProtectedRoute>
-              <InventoryPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/items/:id"
-          element={
-            <ProtectedRoute>
-              <ItemDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/me/profile"
-          element={
-            <ProtectedRoute>
-              <MyProfilePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/users/:id"
-          element={
-            <ProtectedRoute>
-              <UserProfilePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/auctions/:id"
-          element={
-            <ProtectedRoute>
-              <AuctionRoomPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/market"
-          element={
-            <ProtectedRoute>
-              <MarketPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/market/:listingId"
-          element={
-            <ProtectedRoute>
-              <MarketDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/sessions"
-          element={
-            <ProtectedRoute>
-              <SessionsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/sessions/:id"
-          element={
-            <ProtectedRoute>
-              <SessionDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/items/submit"
-          element={
-            <ProtectedRoute>
-              <ItemSubmitPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/me/watchlist"
-          element={
-            <ProtectedRoute>
-              <WatchlistPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/me/wallet"
-          element={
-            <ProtectedRoute>
-              <WalletPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/me/notifications"
-          element={
-            <ProtectedRoute>
-              <NotificationsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/transactions/:id/rate"
-          element={
-            <ProtectedRoute>
-              <TransactionRatingPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route element={<AppLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute adminOnly>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/me/inventory"
+            element={
+              <ProtectedRoute>
+                <InventoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/items/:id"
+            element={
+              <ProtectedRoute>
+                <ItemDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/me/profile"
+            element={
+              <ProtectedRoute>
+                <MyProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/:id"
+            element={
+              <ProtectedRoute>
+                <UserProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/auctions/:id"
+            element={
+              <ProtectedRoute>
+                <AuctionRoomPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/market"
+            element={
+              <ProtectedRoute>
+                <MarketPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/market/:listingId"
+            element={
+              <ProtectedRoute>
+                <MarketDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sessions"
+            element={
+              <ProtectedRoute>
+                <SessionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sessions/:id"
+            element={
+              <ProtectedRoute>
+                <SessionDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/items/submit"
+            element={
+              <ProtectedRoute>
+                <ItemSubmitPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/me/watchlist"
+            element={
+              <ProtectedRoute>
+                <WatchlistPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/me/wallet"
+            element={
+              <ProtectedRoute>
+                <WalletPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/me/notifications"
+            element={
+              <ProtectedRoute>
+                <NotificationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transactions/:id/rate"
+            element={
+              <ProtectedRoute>
+                <TransactionRatingPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
         {/* Catch‑all redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

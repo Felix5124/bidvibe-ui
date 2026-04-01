@@ -1,4 +1,4 @@
-// API base configuration with Axios and interceptors
+﻿// API base configuration with Axios and interceptors
 import axios from 'axios'
 import { logError, logHttpError } from '../lib/logger'
 
@@ -16,8 +16,8 @@ const api = axios.create({
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    // Prefer Supabase JWT token, fallback to existing authToken
-    const token = localStorage.getItem('sb_jwt') || localStorage.getItem('authToken')
+    // Prefer Supabase JWT token, fallback to existing authToken.
+    const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -38,9 +38,9 @@ api.interceptors.response.use(
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
       logError('Auth', 'Received 401, clearing session and redirecting to login', error)
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('sb_jwt')
-      localStorage.removeItem('user')
+      sessionStorage.removeItem('authToken')
+      sessionStorage.removeItem('sb_jwt')
+      sessionStorage.removeItem('user')
       // Optionally trigger Supabase sign‑out via custom event
       window.dispatchEvent(new CustomEvent('auth:logout'))
       window.location.href = '/login'

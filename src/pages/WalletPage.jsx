@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getBalance, getTransactionHistory, requestDeposit, requestWithdraw } from '../api/wallet'
 
@@ -37,7 +37,7 @@ export default function WalletPage() {
       await Promise.all([loadWallet(), loadTransactions(page)])
     } catch (err) {
       console.error('[WalletPage] Failed to load wallet data', err)
-      setError(err?.response?.data?.message || 'Khong tai duoc du lieu vi.')
+      setError(err?.response?.data?.message || 'Không tải được du lieu vi.')
     } finally {
       setLoading(false)
     }
@@ -61,7 +61,7 @@ export default function WalletPage() {
       await loadAll(txPage)
     } catch (err) {
       console.error('[WalletPage] Failed to request deposit', err)
-      setError(err?.response?.data?.message || 'Gui yeu cau nap tien that bai.')
+      setError(err?.response?.data?.message || 'Gui yeu cau nap tien thất bại.')
     }
   }
 
@@ -79,7 +79,7 @@ export default function WalletPage() {
       await loadAll(txPage)
     } catch (err) {
       console.error('[WalletPage] Failed to request withdraw', err)
-      setError(err?.response?.data?.message || 'Gui yeu cau rut tien that bai.')
+      setError(err?.response?.data?.message || 'Gui yeu cau rut tien thất bại.')
     }
   }
 
@@ -87,14 +87,14 @@ export default function WalletPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Vi tien</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Ve trang chu</Link>
+          <h1 className="text-3xl font-bold text-gray-900">Ví tiền</h1>
+          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -114,26 +114,26 @@ export default function WalletPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <form onSubmit={submitDeposit} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
-                <h2 className="text-xl font-semibold">Nap tien</h2>
-                <input type="number" min="0" required value={depositForm.amount} onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="So tien" />
+                <h2 className="text-xl font-semibold">Nạp tiền</h2>
+                <input type="number" min="0" required value={depositForm.amount} onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tiền" />
                 <input value={depositForm.note} onChange={(e) => setDepositForm((prev) => ({ ...prev, note: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Ghi chu" />
                 <button className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700">Gui yeu cau nap</button>
               </form>
 
               <form onSubmit={submitWithdraw} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
-                <h2 className="text-xl font-semibold">Rut tien</h2>
-                <input type="number" min="0" required value={withdrawForm.amount} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="So tien" />
-                <input required value={withdrawForm.bankAccountName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Ten chu tai khoan" />
-                <input required value={withdrawForm.bankAccountNumber} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountNumber: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="So tai khoan" />
-                <input required value={withdrawForm.bankName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Ten ngan hang" />
+                <h2 className="text-xl font-semibold">Rút tiền</h2>
+                <input type="number" min="0" required value={withdrawForm.amount} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tiền" />
+                <input required value={withdrawForm.bankAccountName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Tên chủ tài khoản" />
+                <input required value={withdrawForm.bankAccountNumber} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountNumber: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tài khoản" />
+                <input required value={withdrawForm.bankName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Tên ngân hàng" />
                 <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Gui yeu cau rut</button>
               </form>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-6">
-              <h2 className="text-xl font-semibold mb-4">Lich su giao dich</h2>
+              <h2 className="text-xl font-semibold mb-4">Lịch sử giao dịch</h2>
               {transactions.length === 0 ? (
-                <p className="text-gray-600">Chua co giao dich nao.</p>
+                <p className="text-gray-600">Chưa có giao dịch nao.</p>
               ) : (
                 <div className="space-y-2">
                   {transactions.map((tx) => (
@@ -167,3 +167,4 @@ export default function WalletPage() {
     </div>
   )
 }
+

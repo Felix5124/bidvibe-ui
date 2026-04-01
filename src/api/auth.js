@@ -34,7 +34,7 @@ export const login = (data) => {
  * Refresh authentication token
  */
 export const refreshToken = () => {
-  const token = localStorage.getItem('authToken')
+  const token = sessionStorage.getItem('authToken')
   return authApi.post('/refresh', {}, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -46,7 +46,7 @@ export const refreshToken = () => {
  * Logout user
  */
 export const logout = () => {
-  const token = localStorage.getItem('authToken')
+  const token = sessionStorage.getItem('authToken')
   return authApi.post('/logout', {}, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -56,13 +56,13 @@ export const logout = () => {
 
 // Store auth token after login
 export const setAuthToken = (token) => {
-  localStorage.setItem('authToken', token)
+  sessionStorage.setItem('authToken', token)
   authApi.defaults.headers.common.Authorization = `Bearer ${token}`
 }
 
 // Remove auth token on logout
 export const removeAuthToken = () => {
-  localStorage.removeItem('authToken')
+  sessionStorage.removeItem('authToken')
   delete authApi.defaults.headers.common.Authorization
 }
 

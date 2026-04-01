@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { confirmReceipt, getInventory, listOnMarket } from '../api/items'
+import { confirmReceipt, getInventory } from '../api/items'
+import { createListing } from '../api/market'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -25,7 +26,7 @@ export default function InventoryPage() {
       setMeta(payload?.meta || null)
     } catch (err) {
       console.error('[InventoryPage] Failed to load inventory', err)
-      setError(err?.response?.data?.message || 'Khong tai duoc kho do.')
+      setError(err?.response?.data?.message || 'Không tải được kho do.')
     } finally {
       setLoading(false)
     }
@@ -43,7 +44,7 @@ export default function InventoryPage() {
       await loadInventory(page)
     } catch (err) {
       console.error('[InventoryPage] Failed to confirm receipt', err)
-      setError(err?.response?.data?.message || 'Xac nhan nhan hang that bai.')
+      setError(err?.response?.data?.message || 'Xac nhan nhan hang thất bại.')
     } finally {
       setProcessingId(null)
     }
@@ -59,12 +60,12 @@ export default function InventoryPage() {
 
     setProcessingId(itemId)
     try {
-      await listOnMarket({ itemId, askingPrice })
+      await createListing({ itemId, askingPrice })
       setMarketPriceById((prev) => ({ ...prev, [itemId]: '' }))
       await loadInventory(page)
     } catch (err) {
       console.error('[InventoryPage] Failed to list item on market', err)
-      setError(err?.response?.data?.message || 'Niem yet len cho that bai.')
+      setError(err?.response?.data?.message || 'Niem yet len cho thất bại.')
     } finally {
       setProcessingId(null)
     }
@@ -79,11 +80,11 @@ export default function InventoryPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Kho do cua toi</h1>
-            <p className="text-gray-600 mt-1">Quan ly vat pham, xac nhan nhan hang va niem yet len cho.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Kho đồ của tôi</h1>
+            <p className="text-gray-600 mt-1">Quản lý vật phẩm, xác nhận hàng và niêm yết lên chợ.</p>
           </div>
           <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">
-            Ve trang chu
+            Về trang chủ
           </Link>
         </div>
 
@@ -92,9 +93,9 @@ export default function InventoryPage() {
         )}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-600">Đang tải dữ liệu...</div>
         ) : items.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-600">Kho do trong.</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-600">Kho đồ trống.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {items.map((item) => {
@@ -105,7 +106,7 @@ export default function InventoryPage() {
                     <h2 className="text-lg font-semibold text-gray-900">{item.name}</h2>
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">{item.status}</span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-3">{item.description || 'Khong co mo ta.'}</p>
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-3">{item.description || 'Không có mo ta.'}</p>
                   <div className="mt-3 text-sm text-gray-700">Rarity: {item.rarity || '-'}</div>
 
                   <div className="mt-4 flex gap-3">
@@ -134,7 +135,7 @@ export default function InventoryPage() {
                         value={marketPriceById[item.id] || ''}
                         onChange={(e) => setMarketPrice(item.id, e.target.value)}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Nhap gia"
+                        placeholder="Nhập gia"
                       />
                       <button
                         type="button"
@@ -155,7 +156,7 @@ export default function InventoryPage() {
         {meta && (
           <div className="mt-6 flex items-center justify-between">
             <p className="text-sm text-gray-600">
-              Trang {meta.page + 1} / {Math.max(meta.totalPages, 1)} - {meta.totalElements} vat pham
+              Trang {meta.page + 1} / {Math.max(meta.totalPages, 1)} - {meta.totalElements} vật phẩm
             </p>
             <div className="flex gap-2">
               <button
@@ -164,7 +165,7 @@ export default function InventoryPage() {
                 disabled={page === 0 || loading}
                 className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60"
               >
-                Truoc
+                Trước
               </button>
               <button
                 type="button"

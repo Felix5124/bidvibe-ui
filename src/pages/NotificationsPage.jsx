@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getNotifications, getUnreadCount, markAllAsRead, markAsRead } from '../api/notifications'
 
@@ -27,7 +27,7 @@ export default function NotificationsPage() {
       setUnreadCount(Number(readApiData(countRes) || 0))
     } catch (err) {
       console.error('[NotificationsPage] Failed to load notifications', err)
-      setError(err?.response?.data?.message || 'Khong tai duoc thong bao.')
+      setError(err?.response?.data?.message || 'Không tải được thông báo.')
     } finally {
       setLoading(false)
     }
@@ -44,7 +44,7 @@ export default function NotificationsPage() {
       await loadData(page)
     } catch (err) {
       console.error('[NotificationsPage] Failed to mark notification as read', err)
-      setError(err?.response?.data?.message || 'Danh dau da doc that bai.')
+      setError(err?.response?.data?.message || 'Đánh dấu da doc thất bại.')
     }
   }
 
@@ -55,7 +55,7 @@ export default function NotificationsPage() {
       await loadData(page)
     } catch (err) {
       console.error('[NotificationsPage] Failed to mark all notifications as read', err)
-      setError(err?.response?.data?.message || 'Danh dau tat ca da doc that bai.')
+      setError(err?.response?.data?.message || 'Đánh dấu tat ca da doc thất bại.')
     }
   }
 
@@ -63,21 +63,21 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Trung tam thong bao</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Ve trang chu</Link>
+          <h1 className="text-3xl font-bold text-gray-900">Trung tâm thông báo</h1>
+          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
 
         <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
-          <p className="text-gray-700">Chua doc: <span className="font-semibold">{unreadCount}</span></p>
-          <button type="button" onClick={handleMarkAll} className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Danh dau tat ca da doc</button>
+          <p className="text-gray-700">Chưa đọc: <span className="font-semibold">{unreadCount}</span></p>
+          <button type="button" onClick={handleMarkAll} className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Đánh dấu tất cả đã đọc</button>
         </div>
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
         ) : notifications.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Khong co thong bao.</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Không có thông báo.</div>
         ) : (
           <div className="space-y-3">
             {notifications.map((noti) => (
@@ -103,7 +103,7 @@ export default function NotificationsPage() {
           <div className="mt-6 flex items-center justify-between">
             <p className="text-sm text-gray-600">Trang {meta.page + 1} / {Math.max(meta.totalPages, 1)}</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60">Truoc</button>
+              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60">Trước</button>
               <button type="button" onClick={() => setPage((p) => (meta.totalPages > p + 1 ? p + 1 : p))} disabled={meta.totalPages <= page + 1} className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60">Sau</button>
             </div>
           </div>
@@ -112,3 +112,4 @@ export default function NotificationsPage() {
     </div>
   )
 }
+

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { buyListing, getListingDetail, getListingMessages, sendListingMessage } from '../api/market'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { buyListing, cancelListing, getListingDetail, getListingMessages, sendListingMessage } from '../api/market'
 import { createStompClient } from '../lib/stomp'
 import { useAuthStore } from '../store/authStore'
 
@@ -8,6 +8,7 @@ const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 export default function MarketDetailPage() {
   const { listingId } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuthStore()
 
   const [listing, setListing] = useState(null)
@@ -40,7 +41,7 @@ export default function MarketDetailPage() {
         await Promise.all([loadDetail(), loadMessages()])
       } catch (err) {
         console.error('[MarketDetailPage] Failed to load listing detail/messages', err)
-        setError(err?.response?.data?.message || 'Khong tai duoc chi tiet listing.')
+        setError(err?.response?.data?.message || 'Không tải được chi tiet listing.')
       } finally {
         setLoading(false)
       }
@@ -83,7 +84,18 @@ export default function MarketDetailPage() {
       await loadDetail()
     } catch (err) {
       console.error('[MarketDetailPage] Failed to buy listing', err)
-      setError(err?.response?.data?.message || 'Mua listing that bai.')
+      setError(err?.response?.data?.message || 'Mua listing thất bại.')
+    }
+  }
+
+  // Cancel listing if current user is seller.
+  const handleCancelListing = async () => {
+    try {
+      await cancelListing(listingId)
+      navigate('/market')
+    } catch (err) {
+      console.error('[MarketDetailPage] Failed to cancel listing', err)
+      setError(err?.response?.data?.message || 'Huy listing thất bại.')
     }
   }
 
@@ -99,7 +111,7 @@ export default function MarketDetailPage() {
       await loadMessages()
     } catch (err) {
       console.error('[MarketDetailPage] Failed to send listing message', err)
-      setError(err?.response?.data?.message || 'Gui tin nhan that bai.')
+      setError(err?.response?.data?.message || 'Gui tin nhan thất bại.')
     }
   }
 
@@ -107,21 +119,21 @@ export default function MarketDetailPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Chi tiet listing</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Chi tiết tin đăng</h1>
           <Link to="/market" className="text-blue-600 hover:text-blue-700 font-medium">Ve cho den</Link>
         </div>
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Dang tai du lieu...</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
         ) : listing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-semibold text-gray-900">{listing.item?.name}</h2>
-                  <p className="mt-2 text-gray-700">{listing.item?.description || 'Khong co mo ta.'}</p>
+                  <p className="mt-2 text-gray-700">{listing.item?.description || 'Không có mo ta.'}</p>
                 </div>
                 <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">{listing.status}</span>
               </div>
@@ -141,10 +153,21 @@ export default function MarketDetailPage() {
               >
                 Mua ngay
               </button>
+
+              {isSeller && (
+                <button
+                  type="button"
+                  onClick={handleCancelListing}
+                  disabled={listing.status !== 'ACTIVE'}
+                  className="mt-3 ml-3 px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  Huy listing
+                </button>
+              )}
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm h-fit">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Trang thai ket noi</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Trạng thái kết nối</h3>
               <p className="text-sm text-gray-700">WebSocket: {wsStatus}</p>
               <p className="text-xs text-gray-500 mt-2">
                 Tin nhan listing hien tai duoc dong bo qua API; socket duoc bat de san sang cho realtime.
@@ -152,11 +175,11 @@ export default function MarketDetailPage() {
             </div>
 
             <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Thuong luong</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Thương lượng</h3>
 
               <div className="space-y-3 max-h-80 overflow-y-auto mb-4">
                 {messages.length === 0 ? (
-                  <p className="text-gray-600">Chua co tin nhan.</p>
+                  <p className="text-gray-600">Chưa có tin nhan.</p>
                 ) : (
                   messages.map((msg) => {
                     const mine = user?.id && msg.sender?.id === user.id
@@ -180,7 +203,7 @@ export default function MarketDetailPage() {
                 <input
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={canChat ? 'Nhap noi dung...' : 'Chi seller/buyer moi duoc chat.'}
+                  placeholder={canChat ? 'Nhập noi dung...' : 'Chi seller/buyer moi duoc chat.'}
                   disabled={!canChat}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
                 />
@@ -199,3 +222,4 @@ export default function MarketDetailPage() {
     </div>
   )
 }
+

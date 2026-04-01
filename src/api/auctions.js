@@ -1,4 +1,5 @@
 // Auction & Bidding APIs
+// GET  /api/auctions/session/{sessionId} - Get all auctions in a session
 // GET  /api/auctions/{id} - Get auction details
 // GET  /api/auctions/{id}/bids - Get bid history (paginated)
 // POST /api/auctions/{id}/bids - Place a regular bid
@@ -10,6 +11,14 @@
 // POST /api/auctions/{id}/messages - Send live chat message
 
 import api from './baseApi'
+
+/**
+ * Get all auctions in a session
+ * @param {string} sessionId - Session ID
+ */
+export const getAuctionsBySession = (sessionId) => {
+  return api.get(`/auctions/session/${sessionId}`)
+}
 
 /**
  * Get auction details
@@ -93,6 +102,7 @@ export const sendLiveChatMessage = (auctionId, data) => {
 }
 
 export default {
+  getAuctionsBySession,
   getAuction,
   getAuctionBids,
   placeBid,
