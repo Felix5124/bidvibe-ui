@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useToast } from '../context/ToastContext'
 import { submitItem } from '../api/items'
 import { uploadFileToSupabase } from '../lib/supabase'
 
@@ -7,6 +8,7 @@ const RARITY_OPTIONS = ['COMMON', 'RARE', 'LEGENDARY']
 
 export default function ItemSubmitPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const fileInputRef = useRef(null)
   
   const [form, setForm] = useState({
@@ -19,8 +21,6 @@ export default function ItemSubmitPage() {
   const [uploadedUrls, setUploadedUrls] = useState([])
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
 
   const onChange = (event) => {
     const { name, value } = event.target
@@ -31,18 +31,18 @@ export default function ItemSubmitPage() {
   const handleFiles = async (files) => {
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
     if (validFiles.length === 0) {
-      setError('Vui lòng chỉ chọn các file hình ảnh.')
+      toast.warning('Vui lòng chỉ chọn các file hình ảnh.')
       return
     }
 
     setUploading(true)
-    setError(null)
     try {
       const uploadPromises = validFiles.map(file => uploadFileToSupabase('items', file))
       const urls = await Promise.all(uploadPromises)
       setUploadedUrls(prev => [...prev, ...urls])
+      toast.success(`Đã tải lên ${urls.length} ảnh.`)
     } catch {
-      setError('Lỗi khi tải ảnh lên. Vui lòng thử lại.')
+      toast.error('Lỗi khi tải ảnh lên. Vui lòng thử lại.')
     } finally {
       setUploading(false)
     }
@@ -65,26 +65,24 @@ export default function ItemSubmitPage() {
   const onSubmit = async (event) => {
     event.preventDefault()
     if (uploadedUrls.length === 0) {
-      setError('Vui lòng tải lên ít nhất 1 hình ảnh vật phẩm.')
+      toast.warning('Vui lòng tải lên ít nhất 1 hình ảnh vật phẩm.')
       return
     }
 
     setSaving(true)
-    setError(null)
-    setSuccess(null)
     try {
       await submitItem({
         name: form.name,
         description: form.description,
         rarity: form.rarity,
-        imageUrls: uploadedUrls, // Truyền thẳng mảng URL thay vì text area
+        imageUrls: uploadedUrls,
       })
 
-      setSuccess('Gửi ký gửi thành công, vui lòng chờ quản trị viên duyệt.')
+      toast.success('Gửi ký gửi thành công! Vui lòng chờ quản trị viên duyệt.')
       setTimeout(() => navigate('/me/inventory'), 1500)
     } catch (err) {
       console.error('[ItemSubmitPage] Failed to submit item', err)
-      setError(err?.response?.data?.message || 'Ký gửi vật phẩm thất bại.')
+      toast.error(err?.response?.data?.message || 'Ký gửi vật phẩm thất bại.')
     } finally {
       setSaving(false)
     }
@@ -97,9 +95,6 @@ export default function ItemSubmitPage() {
           <h1 className="text-3xl font-bold text-gray-900">Ký gửi vật phẩm</h1>
           <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
         </div>
-
-        {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
-        {success && <div className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700">{success}</div>}
 
         <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
           <div>
@@ -151,7 +146,14 @@ export default function ItemSubmitPage() {
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                 {uploadedUrls.map((url, index) => (
                   <div key={index} className="relative group rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-square">
-                    <img src={url} alt={`upload-${index}`} className="w-full h-full object-cover" />
+                     <img 
+                       src={url} 
+                       alt={`upload-${index}`} 
+                       className="w-full h-full object-cover"
+                       onError={(e) => {
+                         e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" fill="%23f1f5f9"><rect width="200" height="200"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Hình ${index + 1}</text></svg>'
+                       }}
+                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <button type="button" onClick={() => removeImage(index)} className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>

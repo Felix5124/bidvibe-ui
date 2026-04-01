@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getWatchlist, removeFromWatchlist, toggleWatchlist } from '../api/users'
+import { ItemsListSkeleton } from '../components/Skeleton'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -80,7 +81,7 @@ export default function WatchlistPage() {
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>
+          <ItemsListSkeleton count={12} />
         ) : items.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Watchlist trong.</div>
         ) : (

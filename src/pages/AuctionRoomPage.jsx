@@ -13,6 +13,8 @@ import {
 } from '../api/auctions'
 import { createStompClient } from '../lib/stomp'
 import { useAuthStore } from '../store/authStore'
+import { formatVND } from '../utils/formatVND'
+import Countdown from '../components/Countdown'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -68,7 +70,10 @@ export default function AuctionRoomPage() {
   // Load persisted live-chat history via REST API.
   const loadMessages = useCallback(async () => {
     const response = await getLiveChatMessages(id)
-    setMessages(readApiData(response) || [])
+    const payload = readApiData(response)
+    // Handle paginated response (content array) or direct array
+    const messagesArray = Array.isArray(payload) ? payload : (Array.isArray(payload?.content) ? payload.content : [])
+    setMessages(messagesArray)
   }, [id])
 
   // Load the whole room state in parallel.
@@ -102,9 +107,33 @@ export default function AuctionRoomPage() {
       onConnect: () => {
         setWsStatus('connected')
 
-        client.subscribe(`/topic/auction/${id}`, () => {
-          loadAuction().catch(() => {})
-          loadBids().catch(() => {})
+        // Subscribe to auction updates - use payload directly for faster price updates
+        client.subscribe(`/topic/auction/${id}`, (msg) => {
+          try {
+            const payload = JSON.parse(msg.body)
+            console.log('[AuctionRoomPage] Received auction update:', payload)
+            
+            // Update auction state immediately with WebSocket data
+            if (payload.currentPrice !== undefined || payload.status || payload.endTime) {
+              setAuction((prev) => {
+                if (!prev) return prev
+                return {
+                  ...prev,
+                  currentPrice: payload.currentPrice ?? prev.currentPrice,
+                  status: payload.status ?? prev.status,
+                  endTime: payload.endTime ?? prev.endTime,
+                  winner: payload.currentLeader ?? prev.winner,
+                }
+              })
+              // Also reload bids to show latest bid history
+              loadBids().catch(() => {})
+            }
+          } catch (err) {
+            console.error('[AuctionRoomPage] Failed to parse auction update payload', err)
+            // Fallback to reloading
+            loadAuction().catch(() => {})
+            loadBids().catch(() => {})
+          }
         })
 
         client.subscribe(`/topic/chat/${id}`, (msg) => {
@@ -141,7 +170,7 @@ export default function AuctionRoomPage() {
 
   const formatVnd = (value) => {
     if (value == null) return '-'
-    return new Intl.NumberFormat('vi-VN').format(Number(value)) + ' VND'
+    return formatVND(value)
   }
 
   const formatDateTime = (value) => {
@@ -156,6 +185,10 @@ export default function AuctionRoomPage() {
   const auctionType = auction?.session?.type || auction?.type
 
   const auctionTypeLabel = AUCTION_TYPE_LABEL[auctionType] || (auctionType || 'Không xác định')
+  
+  const isEnglish = auctionType === 'ENGLISH'
+  const isDutch = auctionType === 'DUTCH'
+  const isSealed = auctionType === 'SEALED'
 
   // Wrapper to execute an auction action then refresh room data.
   const submitAction = async (action) => {
@@ -269,7 +302,11 @@ export default function AuctionRoomPage() {
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 md:col-span-2">
                     <p className="text-slate-500">Thời điểm kết thúc</p>
-                    <p className="font-semibold text-slate-800 mt-1">{formatDateTime(auction.endTime)}</p>
+                    {auction.status === 'ACTIVE' ? (
+                      <Countdown endTime={auction.endTime} className="font-semibold text-slate-800 mt-1" />
+                    ) : (
+                      <p className="font-semibold text-slate-800 mt-1">{formatDateTime(auction.endTime)}</p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                     { getStatusMeta(auction.status).label === "ENDED" ? <p className="text-slate-500">Người chiến thắng</p> : <p className="text-slate-500">Người thắng tạm thời</p>}
@@ -277,8 +314,46 @@ export default function AuctionRoomPage() {
                   </div>
                 </div>
 
+                {/* Rate seller section - shown to winner after auction ends */}
+                {auction.status === 'ENDED' && user && auction.winner && user.id === auction.winner.id && auction.item?.seller && (
+                  <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <h3 className="font-semibold text-emerald-800 mb-2">Chúc mừng! Bạn đã thắng đấu giá</h3>
+                    <p className="text-sm text-emerald-700 mb-3">
+                      Vui lòng đánh giá người bán <span className="font-medium">{auction.item.seller.nickname || 'người dùng'}</span> về giao dịch này.
+                    </p>
+                    <Link
+                      to={`/transactions/${auction.id}/rate?auctionId=${auction.id}&toUserName=${encodeURIComponent(auction.item.seller.nickname || '')}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      Đánh giá người bán
+                    </Link>
+                  </div>
+                )}
+
+                {/* Rate winner section - shown to seller after auction ends */}
+                {auction.status === 'ENDED' && user && auction.item?.seller && user.id === auction.item.seller.id && auction.winner && (
+                  <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <h3 className="font-semibold text-blue-800 mb-2">Đấu giá đã kết thúc</h3>
+                    <p className="text-sm text-blue-700 mb-3">
+                      Người thắng: <span className="font-medium">{auction.winner.nickname || 'người dùng'}</span> với giá {formatVnd(auction.currentPrice)}
+                    </p>
+                    <Link
+                      to={`/transactions/${auction.id}/rate?auctionId=${auction.id}&toUserName=${encodeURIComponent(auction.winner.nickname || '')}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      Đánh giá người mua
+                    </Link>
+                  </div>
+                )}
+
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <form onSubmit={handlePlaceBid} className="border border-gray-200 rounded-xl p-4">
+                  <form onSubmit={handlePlaceBid} className={"border border-gray-200 rounded-xl p-4" + (isEnglish ? "" : " hidden")}>
                     <h3 className="font-semibold mb-2 text-slate-900">Đặt giá thường</h3>
                     <div className="flex gap-2">
                       <input
@@ -294,7 +369,7 @@ export default function AuctionRoomPage() {
                     </div>
                   </form>
 
-                  <form onSubmit={handleSealedBid} className="border border-gray-200 rounded-xl p-4">
+                  <form onSubmit={handleSealedBid} className={"border border-gray-200 rounded-xl p-4" + (isSealed ? "" : " hidden")}>
                     <h3 className="font-semibold mb-2 text-slate-900">Đặt giá kín</h3>
                     <div className="flex gap-2">
                       <input
@@ -310,7 +385,7 @@ export default function AuctionRoomPage() {
                     </div>
                   </form>
 
-                  <form onSubmit={handleSetProxy} className="border border-gray-200 rounded-xl p-4">
+                  <form onSubmit={handleSetProxy} className={"border border-gray-200 rounded-xl p-4" + (isEnglish ? "" : " hidden")}>
                     <h3 className="font-semibold mb-2 text-slate-900">Đặt giá ủy quyền</h3>
                     <div className="flex gap-2">
                       <input
@@ -326,7 +401,7 @@ export default function AuctionRoomPage() {
                     </div>
                   </form>
 
-                  <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-2 flex-wrap">
+                  <div className={"border border-gray-200 rounded-xl p-4 flex items-center gap-2 flex-wrap" + ((isEnglish || isDutch) ? "" : " hidden")}>
                     <button
                       type="button"
                       onClick={() => submitAction(() => buyNow(id))}
@@ -383,7 +458,9 @@ export default function AuctionRoomPage() {
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <h3 className="text-xl font-semibold text-slate-900 mb-4">Trò chuyện trực tiếp</h3>
                 <div className="space-y-2 max-h-72 overflow-y-auto mb-4 pr-1">
-                  {messages.length === 0 ? (
+                  {!Array.isArray(messages) ? (
+                    <p className="text-slate-600">Dữ liệu tin nhắn không hợp lệ.</p>
+                  ) : messages.length === 0 ? (
                     <p className="text-slate-600">Chưa có tin nhắn.</p>
                   ) : (
                     messages.map((msg) => {

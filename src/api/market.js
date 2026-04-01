@@ -61,9 +61,13 @@ export const buyListing = (listingId) => {
 /**
  * Get negotiation/chat messages for a listing
  * @param {string} listingId - Listing ID
+ * @param {number} page - Page number (default: 0)
+ * @param {number} size - Page size (default: 50)
  */
-export const getListingMessages = (listingId) => {
-  return api.get(`/market/listings/${listingId}/messages`)
+export const getListingMessages = (listingId, page = 0, size = 50) => {
+  return api.get(`/market/listings/${listingId}/messages`, {
+    params: { page, size },
+  })
 }
 
 /**

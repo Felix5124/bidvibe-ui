@@ -1,10 +1,12 @@
 ﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useToast } from '../context/ToastContext'
 import { getBalance, getTransactionHistory, requestDeposit, requestWithdraw } from '../api/wallet'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 export default function WalletPage() {
+  const toast = useToast()
   const [balance, setBalance] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [txMeta, setTxMeta] = useState(null)
@@ -37,7 +39,7 @@ export default function WalletPage() {
       await Promise.all([loadWallet(), loadTransactions(page)])
     } catch (err) {
       console.error('[WalletPage] Failed to load wallet data', err)
-      setError(err?.response?.data?.message || 'Không tải được du lieu vi.')
+      setError(err?.response?.data?.message || 'Không tải được dữ liệu ví.')
     } finally {
       setLoading(false)
     }
@@ -57,11 +59,12 @@ export default function WalletPage() {
     event.preventDefault()
     try {
       await requestDeposit({ amount: Number(depositForm.amount), note: depositForm.note })
+      toast.success('Đã gửi yêu cầu nạp tiền. Vui lòng chờ duyệt.')
       setDepositForm({ amount: '', note: '' })
       await loadAll(txPage)
     } catch (err) {
       console.error('[WalletPage] Failed to request deposit', err)
-      setError(err?.response?.data?.message || 'Gui yeu cau nap tien thất bại.')
+      toast.error(err?.response?.data?.message || 'Gửi yêu cầu nạp tiền thất bại.')
     }
   }
 
@@ -75,11 +78,12 @@ export default function WalletPage() {
         bankAccountNumber: withdrawForm.bankAccountNumber,
         bankName: withdrawForm.bankName,
       })
+      toast.success('Đã gửi yêu cầu rút tiền. Vui lòng chờ duyệt.')
       setWithdrawForm({ amount: '', bankAccountName: '', bankAccountNumber: '', bankName: '' })
       await loadAll(txPage)
     } catch (err) {
       console.error('[WalletPage] Failed to request withdraw', err)
-      setError(err?.response?.data?.message || 'Gui yeu cau rut tien thất bại.')
+      toast.error(err?.response?.data?.message || 'Gửi yêu cầu rút tiền thất bại.')
     }
   }
 

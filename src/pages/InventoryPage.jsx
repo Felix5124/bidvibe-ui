@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useToast } from '../context/ToastContext'
 import { confirmReceipt, getInventory } from '../api/items'
 import { createListing } from '../api/market'
+import { ItemsListSkeleton } from '../components/Skeleton'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -16,6 +18,7 @@ const STATUS_MAP = {
 }
 
 export default function InventoryPage() {
+  const toast = useToast()
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
   const [page, setPage] = useState(0)
@@ -49,10 +52,11 @@ export default function InventoryPage() {
     setProcessingId(itemId)
     try {
       await confirmReceipt(itemId)
+      toast.success('Đã xác nhận nhận hàng.')
       await loadInventory(page)
     } catch (err) {
       console.error('[InventoryPage] Failed to confirm receipt', err)
-      setError(err?.response?.data?.message || 'Xác nhận nhận hàng thất bại.')
+      toast.error(err?.response?.data?.message || 'Xác nhận nhận hàng thất bại.')
     } finally {
       setProcessingId(null)
     }
@@ -61,18 +65,19 @@ export default function InventoryPage() {
   const handleListOnMarket = async (itemId) => {
     const askingPrice = Number(marketPriceById[itemId])
     if (!Number.isFinite(askingPrice) || askingPrice <= 0) {
-      setError('Giá niêm yết phải lớn hơn 0.')
+      toast.warning('Giá niêm yết phải lớn hơn 0.')
       return
     }
 
     setProcessingId(itemId)
     try {
       await createListing({ itemId, askingPrice })
+      toast.success('Đã niêm yết vật phẩm lên chợ.')
       setMarketPriceById((prev) => ({ ...prev, [itemId]: '' }))
       await loadInventory(page)
     } catch (err) {
       console.error('[InventoryPage] Failed to list item on market', err)
-      setError(err?.response?.data?.message || 'Niêm yết lên chợ thất bại.')
+      toast.error(err?.response?.data?.message || 'Niêm yết lên chợ thất bại.')
     } finally {
       setProcessingId(null)
     }
@@ -105,10 +110,7 @@ export default function InventoryPage() {
         )}
 
         {loading ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600 mb-2"></div>
-            <p className="text-gray-500">Đang tải dữ liệu...</p>
-          </div>
+          <ItemsListSkeleton count={size} />
         ) : items.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-500">
             Bạn chưa có vật phẩm nào trong kho hoặc đang ký gửi.
@@ -130,7 +132,14 @@ export default function InventoryPage() {
                   </div>
 
                   {item.imageUrls && item.imageUrls.length > 0 && (
-                    <img src={item.imageUrls[0]} alt={item.name} className="w-full h-40 object-cover rounded-lg mb-4 border border-gray-100" />
+                    <img 
+                      src={item.imageUrls[0]} 
+                      alt={item.name} 
+                      className="w-full h-40 object-cover rounded-lg mb-4 border border-gray-100"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150" fill="%23f1f5f9"><rect width="200" height="150"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Không tải được ảnh</text></svg>'
+                      }}
+                    />
                   )}
                   
                   <p className="text-sm text-gray-600 line-clamp-2 mb-4 flex-1">

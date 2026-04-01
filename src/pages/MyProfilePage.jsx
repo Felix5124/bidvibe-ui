@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useToast } from '../context/ToastContext'
 import { getMyProfile, updateMyProfile } from '../api/users'
 import { uploadFileToSupabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -7,13 +8,13 @@ import { useAuthStore } from '../store/authStore'
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 export default function MyProfilePage() {
+  const toast = useToast()
   const { user } = useAuthStore() // Lấy user từ store để dùng googleAvatar fallback
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState(null)
-  const [message, setMessage] = useState(null)
   const fileInputRef = useRef(null)
 
   const [form, setForm] = useState({
@@ -64,16 +65,16 @@ export default function MyProfilePage() {
   const handleFile = async (file) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn file hình ảnh hợp lệ.')
+      toast.warning('Vui lòng chọn file hình ảnh hợp lệ.')
       return
     }
     setUploading(true)
-    setError(null)
     try {
       const url = await uploadFileToSupabase('avatars', file)
       setForm((prev) => ({ ...prev, avatarUrl: url }))
+      toast.success('Đã tải lên ảnh avatar.')
     } catch {
-      setError('Lỗi khi tải ảnh lên. Vui lòng thử lại.')
+      toast.error('Lỗi khi tải ảnh lên. Vui lòng thử lại.')
     } finally {
       setUploading(false)
     }
@@ -94,13 +95,12 @@ export default function MyProfilePage() {
     event.preventDefault()
     setSaving(true)
     setError(null)
-    setMessage(null)
 
     try {
       const response = await updateMyProfile(form)
       const data = readApiData(response)
       setProfile(data)
-      setMessage('Cập nhật profile thành công.')
+      toast.success('Cập nhật profile thành công.')
     } catch (err) {
       console.error('[MyProfilePage] Failed to update profile', err)
       setError(err?.response?.data?.message || 'Cập nhật profile thất bại.')
@@ -122,10 +122,16 @@ export default function MyProfilePage() {
         ) : (
           <>
             {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
-            {message && <div className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700">{message}</div>}
 
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6 flex flex-col md:flex-row items-center gap-6">
-              <img src={displayAvatar} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 shadow-md" />
+               <img 
+                 src={displayAvatar} 
+                 alt="Avatar" 
+                 className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 shadow-md"
+                 onError={(e) => {
+                   e.target.src = 'https://ui-avatars.com/api/?name=User&background=random'
+                 }}
+               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700 flex-1 w-full">
                 <p>Email: <span className="font-semibold text-gray-900">{profile?.email || '-'}</span></p>
                 <p>Vai trò: <span className="font-semibold text-gray-900">{profile?.role || '-'}</span></p>
