@@ -1,6 +1,7 @@
 ﻿import { useAuthStore } from '../../store/authStore'
+import { useToast } from '../../context/ToastContext'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { StatCardSkeleton, UserCardSkeleton, ItemCardSkeleton, SessionCardSkeleton } from '../../components/Skeleton'
 import {
   getOverview,
   getRevenue,
@@ -65,7 +66,8 @@ const toOptionalNumber = (value) => {
 }
 
 export default function AdminDashboard() {
-  const { user, logout } = useAuthStore()
+  const { user: _user } = useAuthStore()
+  const toast = useToast()
   const [tab, setTab] = useState('users')
 
   const [overview, setOverview] = useState(null)
@@ -96,13 +98,18 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState([])
   const [sessionsMeta, setSessionsMeta] = useState(null)
   const [sessionsPage, setSessionsPage] = useState(0)
+  const [sessionStatusFilter, setSessionStatusFilter] = useState('')
+  const [sessionTypeFilter, setSessionTypeFilter] = useState('')
+  const [sessionCounts, setSessionCounts] = useState({ SCHEDULED: 0, ACTIVE: 0, PAUSED: 0, COMPLETED: 0, CANCELLED: 0 })
   const [adminError, setAdminError] = useState(null)
   const [isLoadingTabData, setIsLoadingTabData] = useState(false)
+  const [isProcessingAction, setIsProcessingAction] = useState(false)
 
   const [rejectReasonByItem, setRejectReasonByItem] = useState({})
   const [kickAuctionByUser, setKickAuctionByUser] = useState({})
   const [selectedUserDetail, setSelectedUserDetail] = useState(null)
   const [selectedItemDetail, setSelectedItemDetail] = useState(null)
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false)
 
   const [sessionForm, setSessionForm] = useState({ title: '', type: 'ENGLISH', startTime: '' })
   const [selectedSessionId, setSelectedSessionId] = useState(null)
@@ -195,11 +202,34 @@ export default function AdminDashboard() {
     setPendingTransactions(readApiData(pendingRes) || [])
   }
 
-  const loadSessions = async (targetPage = 0) => {
-    const response = await listSessions({}, targetPage, 10)
+  const loadSessions = async (targetPage = 0, statusFilter = '', typeFilter = '') => {
+    const filters = {}
+    if (statusFilter) filters.status = statusFilter
+    if (typeFilter) filters.type = typeFilter
+    
+    const response = await listSessions(filters, targetPage, 10)
     const payload = readApiData(response)
     setSessions(payload?.content || [])
     setSessionsMeta(payload?.meta || null)
+  }
+
+  const loadSessionCounts = async () => {
+    const statuses = ['SCHEDULED', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']
+    const counts = {}
+    
+    await Promise.all(
+      statuses.map(async (status) => {
+        try {
+          const response = await listSessions({ status }, 0, 1)
+          const payload = readApiData(response)
+          counts[status] = payload?.meta?.totalElements || 0
+        } catch {
+          counts[status] = 0
+        }
+      })
+    )
+    
+    setSessionCounts(counts)
   }
 
   const loadApprovedItems = useCallback(async () => {
@@ -223,20 +253,27 @@ export default function AdminDashboard() {
       if (tab === 'users') await loadUsers(targetPage)
       if (tab === 'items') await loadItems(targetPage)
       if (tab === 'transactions') await loadTransactions(targetPage)
-      if (tab === 'sessions') await loadSessions(targetPage)
+      if (tab === 'sessions') {
+        await Promise.all([
+          loadSessions(targetPage, sessionStatusFilter, sessionTypeFilter),
+          loadSessionCounts(),
+        ])
+      }
     } catch (error) {
       console.error('[AdminDashboard] Failed to load admin tab data', { tab, error })
       setAdminError(error?.response?.data?.message || 'Không tải được du lieu admin.')
     } finally {
       setIsLoadingTabData(false)
     }
-  }, [tab])
+  }, [tab, sessionStatusFilter, sessionTypeFilter])
 
   useEffect(() => {
     setUsersPage(0)
     setItemsPage(0)
     setTxPage(0)
     setSessionsPage(0)
+    setSessionStatusFilter('')
+    setSessionTypeFilter('')
   }, [tab])
 
   useEffect(() => {
@@ -253,7 +290,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (tab === 'sessions') loadTabData(sessionsPage)
-  }, [tab, sessionsPage, loadTabData])
+  }, [tab, sessionsPage, sessionStatusFilter, sessionTypeFilter, loadTabData])
 
   const formatVnd = (value) => {
     if (value == null) return '-'
@@ -261,11 +298,15 @@ export default function AdminDashboard() {
   }
 
   const runAdminAction = async (fn, options = {}) => {
-    const { reloadTab = true, reloadOverview = true } = options
+    const { reloadTab = true, reloadOverview = true, successMessage } = options
     setAdminError(null)
+    setIsProcessingAction(true)
 
     try {
       await fn()
+      if (successMessage) {
+        toast.success(successMessage)
+      }
       if (reloadTab) {
         await loadTabData()
       }
@@ -274,14 +315,17 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       const statusCode = error?.response?.status
-      if (statusCode === 409) {
-        console.warn('[AdminDashboard] Admin action conflict', error?.response?.data)
-        setAdminError(error?.response?.data?.message || 'Trạng thái hiện tại không cho phép thao tac nay.')
-        return
+      const errorMessage = error?.response?.data?.message || 'Thao tác thất bại.'
+      
+      if (statusCode === 409 || statusCode === 400) {
+        console.warn('[AdminDashboard] Admin action conflict/bad request', error?.response?.data)
+        toast.warning(errorMessage)
+      } else {
+        console.error('[AdminDashboard] Admin action failed', error)
+        toast.error(errorMessage)
       }
-
-      console.error('[AdminDashboard] Admin action failed', error)
-      setAdminError(error?.response?.data?.message || 'Thao tác admin thất bại.')
+    } finally {
+      setIsProcessingAction(false)
     }
   }
 
@@ -314,6 +358,7 @@ export default function AdminDashboard() {
     try {
       const response = await getItemDetail(itemId)
       setSelectedItemDetail(readApiData(response))
+      setIsItemModalOpen(true)
     } catch (error) {
       console.error('[AdminDashboard] Failed to load item detail', error)
       setAdminError(error?.response?.data?.message || 'Không tải được chi tiet item.')
@@ -376,20 +421,23 @@ export default function AdminDashboard() {
   const handleAddAuctionToSession = async (event) => {
     event.preventDefault()
     if (!selectedSessionId) {
-      setAdminError('Chọn session truoc khi them item vao session.')
+      toast.warning('Chọn session trước khi thêm vật phẩm.')
+      return
+    }
+    if (isProcessingAction) {
       return
     }
 
     const startPrice = toOptionalNumber(addAuctionForm.startPrice)
     if (!addAuctionForm.itemId.trim() || startPrice == null || startPrice <= 0) {
-      setAdminError('ItemId va startPrice hop le la bat buoc.')
+      toast.warning('ItemId và startPrice hợp lệ là bắt buộc.')
       return
     }
 
     if (selectedSessionDetail?.type === 'DUTCH') {
       const minPrice = toOptionalNumber(addAuctionForm.minPrice)
       if (minPrice == null || minPrice <= 0) {
-        setAdminError('Đấu giá giảm dần (Dutch) yêu cầu giá sàn (minPrice) phải lớn hơn 0.')
+        toast.warning('Đấu giá giảm dần (Dutch) yêu cầu giá sàn (minPrice) phải lớn hơn 0.')
         return
       }
     }
@@ -409,19 +457,20 @@ export default function AdminDashboard() {
     if (addAuctionForm.endTime) {
       const endTimeMs = new Date(addAuctionForm.endTime).getTime()
       if (!Number.isFinite(endTimeMs)) {
-        setAdminError('Thời gian kết thúc không hợp lệ.')
+        toast.error('Thời gian kết thúc không hợp lệ.')
         return
       }
       if (endTimeMs <= Date.now()) {
-        setAdminError('Thời gian kết thúc phải ở tương lai.')
+        toast.error('Thời gian kết thúc phải ở tương lai.')
         return
       }
       payload.endTime = new Date(endTimeMs).toISOString()
     }
 
-    setAdminError(null)
+    setIsProcessingAction(true)
     try {
       await addItemToSession(selectedSessionId, payload)
+      toast.success('Đã thêm vật phẩm vào phiên.')
       await loadSessionManagement(selectedSessionId)
       setAddAuctionForm((prev) => ({
         ...prev,
@@ -435,11 +484,13 @@ export default function AdminDashboard() {
       const statusCode = error?.response?.status
       if (statusCode === 409) {
         console.warn('[AdminDashboard] Add auction conflict', error?.response?.data)
-        setAdminError(error?.response?.data?.message || 'Vật phẩm đã có trong phiên đấu giá khác.')
+        toast.warning(error?.response?.data?.message || 'Vật phẩm đã có trong phiên đấu giá khác.')
       } else {
         console.error('[AdminDashboard] Add auction failed', error)
-        setAdminError(error?.response?.data?.message || 'Không thể thêm vật phẩm vào phiên.')
+        toast.error(error?.response?.data?.message || 'Không thể thêm vật phẩm vào phiên.')
       }
+    } finally {
+      setIsProcessingAction(false)
     }
   }
 
@@ -497,12 +548,12 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600">{u.email} | role: {u.role}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => handleLoadUserDetail(u.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white">Chi tiết</button>
-                <button onClick={() => runAdminAction(() => changeUserRole(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN'))} className="px-2 py-1 text-sm rounded bg-indigo-600 text-white">Đổi vai trò</button>
-                <button onClick={() => runAdminAction(() => muteUser(u.id))} className="px-2 py-1 text-sm rounded bg-amber-600 text-white">Tắt tiếng</button>
-                <button onClick={() => runAdminAction(() => unmuteUser(u.id))} className="px-2 py-1 text-sm rounded bg-amber-500 text-white">Bỏ tắt tiếng</button>
-                <button onClick={() => runAdminAction(() => banUser(u.id))} className="px-2 py-1 text-sm rounded bg-red-600 text-white">Khóa</button>
-                <button onClick={() => runAdminAction(() => unbanUser(u.id))} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white">Mở khóa</button>
+                <button onClick={() => handleLoadUserDetail(u.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white hover:bg-gray-800 transition-colors" disabled={isProcessingAction}>Chi tiết</button>
+                <button onClick={() => runAdminAction(() => changeUserRole(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN'), { successMessage: 'Đã đổi vai trò người dùng.' })} className="px-2 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đổi vai trò</button>
+                <button onClick={() => runAdminAction(() => muteUser(u.id), { successMessage: 'Đã tắt tiếng người dùng.' })} className="px-2 py-1 text-sm rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Tắt tiếng</button>
+                <button onClick={() => runAdminAction(() => unmuteUser(u.id), { successMessage: 'Đã bỏ tắt tiếng người dùng.' })} className="px-2 py-1 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Bỏ tắt tiếng</button>
+                <button onClick={() => runAdminAction(() => banUser(u.id), { successMessage: 'Đã khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Khóa</button>
+                <button onClick={() => runAdminAction(() => unbanUser(u.id), { successMessage: 'Đã mở khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Mở khóa</button>
               </div>
             </div>
 
@@ -513,7 +564,7 @@ export default function AdminDashboard() {
                 placeholder="Nhập mã phòng đấu giá để đá"
                 className="px-2 py-1 border border-gray-300 rounded text-sm flex-1 min-w-64"
               />
-              <button onClick={() => handleKickUser(u.id)} className="px-2 py-1 text-sm rounded bg-rose-700 text-white">Đá khỏi phòng</button>
+              <button onClick={() => handleKickUser(u.id)} className="px-2 py-1 text-sm rounded bg-rose-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đá khỏi phòng</button>
             </div>
           </div>
         ))}
@@ -559,11 +610,11 @@ export default function AdminDashboard() {
                 <p className="font-medium text-gray-900">{item.name}</p>
                 <p className="text-sm text-gray-600 mt-1">{item.description || 'Không có mo ta.'}</p>
               </div>
-              <button onClick={() => handleLoadItemDetail(item.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white">Chi tiết</button>
+              <button onClick={() => handleLoadItemDetail(item.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Chi tiết</button>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2 items-center">
-              <button onClick={() => runAdminAction(() => approveItem(item.id, { rarity: item.rarity || 'COMMON', tags: item.tags || [] }))} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white">Duyệt</button>
+              <button onClick={() => runAdminAction(() => approveItem(item.id, { rarity: item.rarity || 'COMMON', tags: item.tags || [] }), { successMessage: 'Đã duyệt vật phẩm.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt</button>
               <input
                 value={rejectReasonByItem[item.id] || ''}
                 onChange={(e) => setRejectReasonByItem((prev) => ({ ...prev, [item.id]: e.target.value }))}
@@ -571,8 +622,9 @@ export default function AdminDashboard() {
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               />
               <button
-                onClick={() => runAdminAction(() => rejectItem(item.id, { reason: rejectReasonByItem[item.id] || 'Không đạt tiêu chuẩn duyệt.' }))}
-                className="px-2 py-1 text-sm rounded bg-red-600 text-white"
+                onClick={() => runAdminAction(() => rejectItem(item.id, { reason: rejectReasonByItem[item.id] || 'Không đạt tiêu chuẩn duyệt.' }), { successMessage: 'Đã từ chối vật phẩm.' })}
+                className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isProcessingAction}
               >
                 Từ chối
               </button>
@@ -594,17 +646,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {selectedItemDetail && (
-        <div className="mt-5 border border-gray-200 rounded p-4">
-          <h3 className="font-semibold text-gray-900 mb-2">Chi tiết vật phẩm</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
-            <p>ID: {selectedItemDetail.id}</p>
-            <p>Trạng thái: {selectedItemDetail.status || '-'}</p>
-            <p>Name: {selectedItemDetail.name || '-'}</p>
-            <p>Rarity: {selectedItemDetail.rarity || '-'}</p>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 
@@ -626,19 +668,19 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap gap-2">
               {tx.type === 'DEPOSIT' ? (
                 <>
-                  <button onClick={() => runAdminAction(() => approveDeposit(tx.id))} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white">Duyệt nạp</button>
-                  <button onClick={() => runAdminAction(() => rejectDeposit(tx.id))} className="px-2 py-1 text-sm rounded bg-red-600 text-white">Từ chối nạp</button>
+                  <button onClick={() => runAdminAction(() => approveDeposit(tx.id), { successMessage: 'Đã duyệt yêu cầu nạp tiền.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt nạp</button>
+                  <button onClick={() => runAdminAction(() => rejectDeposit(tx.id), { successMessage: 'Đã từ chối yêu cầu nạp tiền.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối nạp</button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => runAdminAction(() => approveWithdraw(tx.id))} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white">Duyệt rút</button>
-                  <button onClick={() => runAdminAction(() => rejectWithdraw(tx.id))} className="px-2 py-1 text-sm rounded bg-red-600 text-white">Từ chối rút</button>
+                  <button onClick={() => runAdminAction(() => approveWithdraw(tx.id), { successMessage: 'Đã duyệt yêu cầu rút tiền.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt rút</button>
+                  <button onClick={() => runAdminAction(() => rejectWithdraw(tx.id), { successMessage: 'Đã từ chối yêu cầu rút tiền.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối rút</button>
                 </>
               )}
-              <button onClick={() => runAdminAction(() => approveTransaction(tx.id))} className="px-2 py-1 text-sm rounded bg-green-800 text-white">Duyệt tự động</button>
-              <button onClick={() => runAdminAction(() => rejectTransaction(tx.id))} className="px-2 py-1 text-sm rounded bg-red-800 text-white">Từ chối tự động</button>
-              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'COMPLETED'))} className="px-2 py-1 text-sm rounded bg-teal-700 text-white">Duyệt kiểu cũ</button>
-              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'CANCELLED'))} className="px-2 py-1 text-sm rounded bg-rose-700 text-white">Từ chối kiểu cũ</button>
+              <button onClick={() => runAdminAction(() => approveTransaction(tx.id), { successMessage: 'Đã duyệt giao dịch.' })} className="px-2 py-1 text-sm rounded bg-green-800 text-white hover:bg-green-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt tự động</button>
+              <button onClick={() => runAdminAction(() => rejectTransaction(tx.id), { successMessage: 'Đã từ chối giao dịch.' })} className="px-2 py-1 text-sm rounded bg-red-800 text-white hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối tự động</button>
+              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'COMPLETED'), { successMessage: 'Đã xử lý giao dịch.' })} className="px-2 py-1 text-sm rounded bg-teal-700 text-white hover:bg-teal-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt kiểu cũ</button>
+              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'CANCELLED'), { successMessage: 'Đã hủy giao dịch.' })} className="px-2 py-1 text-sm rounded bg-rose-700 text-white hover:bg-rose-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối kiểu cũ</button>
             </div>
           </div>
         ))}
@@ -659,34 +701,91 @@ export default function AdminDashboard() {
     </div>
   )
 
-  const renderSessionsTab = () => (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Quản lý phiên</h2>
+  const renderSessionsTab = () => {
+    const sessionStatuses = [
+      { key: '', label: 'Tất cả', color: 'bg-gray-100 text-gray-800 border-gray-300' },
+      { key: 'SCHEDULED', label: 'Chờ bắt đầu', color: 'bg-blue-50 text-blue-700 border-blue-300' },
+      { key: 'ACTIVE', label: 'Đang diễn ra', color: 'bg-green-50 text-green-700 border-green-300' },
+      { key: 'PAUSED', label: 'Tạm dừng', color: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
+      { key: 'COMPLETED', label: 'Hoàn thành', color: 'bg-gray-200 text-gray-600 border-gray-400' },
+      { key: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-300' },
+    ]
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          runAdminAction(() =>
-            createSession({
-              title: sessionForm.title,
-              type: sessionForm.type,
-              startTime: new Date(sessionForm.startTime).toISOString(),
-            })
-          )
-        }}
-        className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-2"
-      >
-        <input value={sessionForm.title} onChange={(e) => setSessionForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Tiêu đề phiên" className="px-3 py-2 border border-gray-300 rounded" required />
-        <select value={sessionForm.type} onChange={(e) => setSessionForm((prev) => ({ ...prev, type: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded">
-          <option value="ENGLISH">ENGLISH</option>
-          <option value="DUTCH">DUTCH</option>
-          <option value="SEALED">SEALED</option>
-        </select>
-        <input type="datetime-local" value={sessionForm.startTime} onChange={(e) => setSessionForm((prev) => ({ ...prev, startTime: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded" required />
-        <button className="px-3 py-2 rounded bg-blue-600 text-white">Tạo phiên</button>
-      </form>
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <h2 className="text-xl font-semibold">Quản lý phiên đấu giá</h2>
+          <div className="flex items-center gap-3">
+            <select
+              value={sessionTypeFilter}
+              onChange={(e) => setSessionTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded text-sm"
+            >
+              <option value="">Tất cả loại</option>
+              <option value="ENGLISH">English</option>
+              <option value="DUTCH">Dutch</option>
+              <option value="SEALED">Sealed Bid</option>
+            </select>
+          </div>
+        </div>
 
-      <div className="space-y-3">
+        {/* Sub-tabs for status */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          {sessionStatuses.map((status) => {
+            const count = status.key === '' 
+              ? Object.values(sessionCounts).reduce((a, b) => a + b, 0)
+              : sessionCounts[status.key] || 0
+            const isActive = sessionStatusFilter === status.key
+            return (
+              <button
+                key={status.key}
+                onClick={() => setSessionStatusFilter(status.key)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                  isActive
+                    ? `${status.color} ring-2 ring-offset-1 ring-blue-300`
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {status.label}
+                {status.key !== 'COMPLETED' && status.key !== 'CANCELLED' && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Create session form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            runAdminAction(
+              () =>
+                createSession({
+                  title: sessionForm.title,
+                  type: sessionForm.type,
+                  startTime: new Date(sessionForm.startTime).toISOString(),
+                }),
+              { successMessage: 'Đã tạo phiên đấu giá thành công.' }
+            )
+            setSessionForm({ title: '', type: 'ENGLISH', startTime: '' })
+          }}
+          className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-2"
+        >
+          <input value={sessionForm.title} onChange={(e) => setSessionForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Tiêu đề phiên" className="px-3 py-2 border border-gray-300 rounded" required />
+          <select value={sessionForm.type} onChange={(e) => setSessionForm((prev) => ({ ...prev, type: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded">
+            <option value="ENGLISH">English (Lên giá)</option>
+            <option value="DUTCH">Dutch (Xuống giá)</option>
+            <option value="SEALED">Sealed Bid (Kín)</option>
+          </select>
+          <input type="datetime-local" value={sessionForm.startTime} onChange={(e) => setSessionForm((prev) => ({ ...prev, startTime: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded" required />
+          <button className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Tạo phiên</button>
+        </form>
+
+        {/* Sessions list */}
+        <div className="space-y-3">
         {sessions.map((s) => (
           <div key={s.id} className="border border-gray-200 rounded p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
@@ -694,71 +793,72 @@ export default function AdminDashboard() {
               <p className="text-sm text-gray-600">{s.type} | {s.status}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => loadSessionManagement(s.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white">Quản lý phòng</button>
+              <button onClick={() => loadSessionManagement(s.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Quản lý phòng</button>
               <button
-                onClick={() => runAdminAction(() => activateSession(s.id))}
-                disabled={s.status !== 'SCHEDULED'}
-                className="px-2 py-1 text-sm rounded bg-emerald-600 text-white disabled:opacity-50"
+                onClick={() => runAdminAction(() => activateSession(s.id), { successMessage: 'Đã bắt đầu phiên đấu giá.' })}
+                disabled={s.status !== 'SCHEDULED' || isProcessingAction}
+                className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Bắt đầu
               </button>
               <button
-                onClick={() => runAdminAction(() => pauseSession(s.id))}
-                disabled={s.status !== 'ACTIVE'}
-                className="px-2 py-1 text-sm rounded bg-amber-600 text-white disabled:opacity-50"
+                onClick={() => runAdminAction(() => pauseSession(s.id), { successMessage: 'Đã tạm dừng phiên đấu giá.' })}
+                disabled={s.status !== 'ACTIVE' || isProcessingAction}
+                className="px-2 py-1 text-sm rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Tạm dừng
               </button>
               <button
-                onClick={() => runAdminAction(() => resumeSession(s.id))}
-                disabled={s.status !== 'PAUSED'}
-                className="px-2 py-1 text-sm rounded bg-indigo-600 text-white disabled:opacity-50"
+                onClick={() => runAdminAction(() => resumeSession(s.id), { successMessage: 'Đã tiếp tục phiên đấu giá.' })}
+                disabled={s.status !== 'PAUSED' || isProcessingAction}
+                className="px-2 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Tiếp tục
               </button>
               <button
-                onClick={() => runAdminAction(() => stopSession(s.id))}
-                disabled={s.status === 'COMPLETED' || s.status === 'CANCELLED'}
-                className="px-2 py-1 text-sm rounded bg-red-600 text-white disabled:opacity-50"
+                onClick={() => runAdminAction(() => stopSession(s.id), { successMessage: 'Đã kết thúc phiên đấu giá.' })}
+                disabled={s.status === 'COMPLETED' || s.status === 'CANCELLED' || isProcessingAction}
+                className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Kết thúc
               </button>
             </div>
           </div>
         ))}
-        {sessions.length === 0 && <p className="text-gray-600">Không có session nao.</p>}
-      </div>
-
-      {sessionsMeta && sessionsMeta.totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
-          <p className="text-sm text-gray-600">
-            Trang {(sessionsMeta.page || 0) + 1} / {Math.max(sessionsMeta.totalPages, 1)} — {sessionsMeta.totalElements || 0} phiên
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
-              disabled={sessionsPage === 0 || isLoadingTabData}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              ← Trước
-            </button>
-            <span className="px-3 py-1.5 text-sm text-gray-700 font-medium">
-              {sessionsPage + 1} / {sessionsMeta.totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setSessionsPage((p) => Math.min(sessionsMeta.totalPages - 1, p + 1))}
-              disabled={sessionsPage >= sessionsMeta.totalPages - 1 || isLoadingTabData}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              Sau →
-            </button>
-          </div>
+        {sessions.length === 0 && <p className="text-gray-600">Không có phiên nào phù hợp bộ lọc.</p>}
         </div>
-      )}
-    </div>
-  )
+
+        {sessionsMeta && sessionsMeta.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <p className="text-sm text-gray-600">
+              Trang {(sessionsMeta.page || 0) + 1} / {Math.max(sessionsMeta.totalPages, 1)} — {sessionsMeta.totalElements || 0} phiên
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
+                disabled={sessionsPage === 0 || isLoadingTabData}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                ← Trước
+              </button>
+              <span className="px-3 py-1.5 text-sm text-gray-700 font-medium">
+                {sessionsPage + 1} / {sessionsMeta.totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSessionsPage((p) => Math.min(sessionsMeta.totalPages - 1, p + 1))}
+                disabled={sessionsPage >= sessionsMeta.totalPages - 1 || isLoadingTabData}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const renderSessionManagementModal = () => {
     if (!isSessionModalOpen || !selectedSessionId) return null
@@ -829,23 +929,27 @@ export default function AdminDashboard() {
                         </div>
                         
                         <div className="flex flex-wrap gap-2 shrink-0">
-                          <button onClick={() => handleLoadAuctionBids(auction.id)} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors">
+                          <button onClick={() => handleLoadAuctionBids(auction.id)} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>
                             Lịch sử giá
                           </button>
-                          <button onClick={() => runAdminAction(() => resetAuctionTimer(auction.id), { reloadTab: false, reloadOverview: false })} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors">
+                          <button onClick={() => runAdminAction(() => resetAuctionTimer(auction.id), { reloadTab: false, reloadOverview: false })} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>
                             + Thời gian
                           </button>
                           <button
                             onClick={async () => {
+                              setIsProcessingAction(true)
                               try {
                                 await removeAuctionFromSession(selectedSessionId, auction.id)
+                                toast.success('Đã gỡ bỏ vật phẩm khỏi phiên.')
                                 await loadSessionManagement(selectedSessionId)
                               } catch (error) {
                                 console.error('[AdminDashboard] Remove auction failed', error)
-                                setAdminError(error?.response?.data?.message || 'Không thể gỡ bỏ vật phẩm.')
+                                toast.error(error?.response?.data?.message || 'Không thể gỡ bỏ vật phẩm.')
+                              } finally {
+                                setIsProcessingAction(false)
                               }
                             }}
-                            disabled={!isScheduled}
+                            disabled={!isScheduled || isProcessingAction}
                             className="px-3 py-1.5 text-sm font-medium rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             Gỡ bỏ
@@ -962,7 +1066,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       
-                      <button type="submit" className="w-full mt-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                      <button type="submit" className="w-full mt-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
                         Thêm vào phiên
                       </button>
@@ -1011,9 +1115,36 @@ export default function AdminDashboard() {
     </div>
   )
 
-  const renderTabContent = () => {
+const renderTabContent = () => {
     if (isLoadingTabData && tab !== 'market') {
-      return <div className="bg-white border border-gray-200 rounded-lg p-6 text-gray-600">Đang tải du lieu...</div>
+      if (tab === 'users') {
+        return (
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <UserCardSkeleton key={i} />
+            ))}
+          </div>
+        )
+      }
+      if (tab === 'items') {
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ItemCardSkeleton key={i} />
+            ))}
+          </div>
+        )
+      }
+      if (tab === 'sessions') {
+        return (
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SessionCardSkeleton key={i} />
+            ))}
+          </div>
+        )
+      }
+      return <div className="bg-white border border-gray-200 rounded-lg p-6 text-gray-600">Đang tải dữ liệu...</div>
     }
 
     if (tab === 'users') return renderUsersTab()
@@ -1025,25 +1156,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển quản trị</h1>
-          <div className="flex items-center space-x-4">
-            <Link to="/" className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">
-              Về trang chủ
-            </Link>
-            <span className="text-gray-700">Xin chào, {user?.email}</span>
-            <button
-              onClick={logout}
-              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-            >
-              Đăng xuất
-            </button>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto py-6 px-4">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển quản trị</h1>
+        </div>
+
         {overviewError && (
           <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">
             {overviewError}
@@ -1147,6 +1264,235 @@ export default function AdminDashboard() {
       </main>
 
       {renderSessionManagementModal()}
+
+      {/* Modal chi tiết vật phẩm */}
+      {isItemModalOpen && selectedItemDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex-none border-b border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Chi tiết vật phẩm</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm font-medium text-indigo-700">{selectedItemDetail.name || 'Không có tên'}</span>
+                  <span className="text-gray-400">•</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border bg-white ${selectedItemDetail.status === 'APPROVED' ? 'border-emerald-300 text-emerald-700' : selectedItemDetail.status === 'REJECTED' ? 'border-rose-300 text-rose-700' : 'border-amber-300 text-amber-700'}`}>
+                    {selectedItemDetail.status || 'PENDING'}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setIsItemModalOpen(false)} className="rounded-lg bg-white border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-sm">
+                Đóng
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Cột trái: Hình ảnh và thông tin cơ bản */}
+                <div className="lg:col-span-1 space-y-4">
+                  {/* Hình ảnh */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <h4 className="font-bold text-slate-800 mb-3">Hình ảnh vật phẩm</h4>
+                    {(() => {
+                      const images = selectedItemDetail?.imageUrls || (selectedItemDetail?.imageUrl ? [selectedItemDetail.imageUrl] : []);
+                      if (images.length > 0) {
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              {images.slice(0, 4).map((url, index) => (
+                                <div key={index} className="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white flex items-center justify-center">
+                                  <img 
+                                    src={url} 
+                                    alt={`${selectedItemDetail.name} - ${index + 1}`}
+                                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                    onError={(e) => {
+                                      e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="%23f1f5f9"><rect width="100" height="100"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Hình ${index + 1}</text></svg>'
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            {images.length > 4 && (
+                              <p className="text-xs text-slate-500 mt-2 text-center">
+                                + {images.length - 4} hình ảnh khác
+                              </p>
+                            )}
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-col items-center justify-center py-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-slate-200 rounded-lg">
+                          <span className="text-5xl mb-2">📦</span>
+                          <p className="text-slate-600 text-sm">Không có hình ảnh</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Thông tin cơ bản */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <h4 className="font-bold text-slate-800 mb-3">Thông tin cơ bản</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Mã vật phẩm:</span>
+                        <span className="font-mono font-medium text-slate-900">{selectedItemDetail.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Trạng thái:</span>
+                        <span className={`font-medium ${selectedItemDetail.status === 'APPROVED' ? 'text-emerald-700' : selectedItemDetail.status === 'REJECTED' ? 'text-rose-700' : 'text-amber-700'}`}>
+                          {selectedItemDetail.status || 'PENDING'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Độ hiếm:</span>
+                        <span className="font-medium text-slate-900">{selectedItemDetail.rarity || 'COMMON'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Người gửi:</span>
+                        <span className="font-medium text-slate-900">{selectedItemDetail.seller?.nickname || selectedItemDetail.seller?.email || 'Ẩn danh'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Ngày gửi:</span>
+                        <span className="font-medium text-slate-900">
+                          {selectedItemDetail.createdAt ? new Date(selectedItemDetail.createdAt).toLocaleString('vi-VN') : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cột phải: Chi tiết */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Tên và mô tả */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <h4 className="font-bold text-slate-800 mb-3">Thông tin chi tiết</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tên vật phẩm</label>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-900 font-medium">
+                          {selectedItemDetail.name || 'Không có tên'}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả</label>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-700 whitespace-pre-wrap min-h-[120px]">
+                          {selectedItemDetail.description || 'Không có mô tả'}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Thông tin bổ sung</label>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-700">
+                          {selectedItemDetail.additionalInfo || 'Không có thông tin bổ sung'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tags và phân loại */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <h4 className="font-bold text-slate-800 mb-3">Phân loại</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItemDetail.tags && selectedItemDetail.tags.length > 0 ? (
+                            selectedItemDetail.tags.map((tag, index) => (
+                              <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full border border-blue-200">
+                                {tag}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-500 text-sm">Không có tags</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Danh mục</label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItemDetail.categories && selectedItemDetail.categories.length > 0 ? (
+                            selectedItemDetail.categories.map((category, index) => (
+                              <span key={index} className="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full border border-purple-200">
+                                {category}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-500 text-sm">Không có danh mục</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thông tin đấu giá (nếu có) */}
+                  {selectedItemDetail.auctionInfo && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <h4 className="font-bold text-slate-800 mb-3">Thông tin đấu giá</h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Giá khởi điểm:</span>
+                          <p className="font-medium text-slate-900">{formatVnd(selectedItemDetail.auctionInfo.startPrice)}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Bước giá:</span>
+                          <p className="font-medium text-slate-900">{formatVnd(selectedItemDetail.auctionInfo.stepPrice)}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Giá mua ngay:</span>
+                          <p className="font-medium text-slate-900">{formatVnd(selectedItemDetail.auctionInfo.buyNowPrice) || 'Không có'}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Thời gian kết thúc:</span>
+                          <p className="font-medium text-slate-900">
+                            {selectedItemDetail.auctionInfo.endTime ? new Date(selectedItemDetail.auctionInfo.endTime).toLocaleString('vi-VN') : '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer với các nút hành động */}
+            <div className="flex-none border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                Vật phẩm ID: <span className="font-mono">{selectedItemDetail.id}</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    runAdminAction(() => approveItem(selectedItemDetail.id, { 
+                      rarity: selectedItemDetail.rarity || 'COMMON', 
+                      tags: selectedItemDetail.tags || [] 
+                    }), { 
+                      successMessage: 'Đã duyệt vật phẩm.',
+                      onSuccess: () => setIsItemModalOpen(false)
+                    })
+                  }}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  Duyệt vật phẩm
+                </button>
+                <button
+                  onClick={() => {
+                    const reason = prompt('Nhập lý do từ chối:', 'Không đạt tiêu chuẩn duyệt.')
+                    if (reason) {
+                      runAdminAction(() => rejectItem(selectedItemDetail.id, { reason }), { 
+                        successMessage: 'Đã từ chối vật phẩm.',
+                        onSuccess: () => setIsItemModalOpen(false)
+                      })
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors shadow-sm"
+                >
+                  Từ chối
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

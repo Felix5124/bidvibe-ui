@@ -1,69 +1,75 @@
 // Authentication APIs
-// POST /api/auth/register - Register new user
-// POST /api/auth/login - Login user
-// POST /api/auth/refresh - Refresh token
-// POST /api/auth/logout - Logout user
+// NOTE: Authentication is handled by Supabase, not by the Spring Backend.
+// The endpoints below are NOT implemented in the backend.
+//
+// For authentication, use the Supabase client directly:
+// - Login: supabase.auth.signInWithOAuth({ provider: 'google' })
+// - Logout: supabase.auth.signOut()
+// - Get Session: supabase.auth.getSession()
+// - Refresh: supabase.auth.refreshSession()
+//
+// See src/lib/supabase.ts and src/store/authStore.ts for actual auth implementation.
 
-import axios from 'axios'
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-const authApi = axios.create({
-  baseURL: `${BASE_URL}/api/auth`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+import { supabase } from '../lib/supabase'
 
 /**
- * Register a new user
- * @param {Object} data - {email, password, name, phoneNumber}
+ * Get current session token from Supabase
+ * @returns {Promise<string|null>} Access token or null
  */
-export const register = (data) => {
-  return authApi.post('/register', data)
+export const getAuthToken = async () => {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token || null
 }
 
 /**
- * Login user
- * @param {Object} data - {email, password}
+ * Sign in with Google OAuth
+ * @returns {Promise<void>}
  */
-export const login = (data) => {
-  return authApi.post('/login', data)
-}
-
-/**
- * Refresh authentication token
- */
-export const refreshToken = () => {
-  const token = sessionStorage.getItem('authToken')
-  return authApi.post('/refresh', {}, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+export const loginWithGoogle = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
     },
   })
+  if (error) throw error
 }
 
 /**
- * Logout user
+ * Sign out from Supabase
+ * @returns {Promise<void>}
  */
-export const logout = () => {
-  const token = sessionStorage.getItem('authToken')
-  return authApi.post('/logout', {}, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-}
-
-// Store auth token after login
-export const setAuthToken = (token) => {
-  sessionStorage.setItem('authToken', token)
-  authApi.defaults.headers.common.Authorization = `Bearer ${token}`
-}
-
-// Remove auth token on logout
-export const removeAuthToken = () => {
+export const logout = async () => {
+  const { error } = await supabase.auth.signOut()
+  if (error) throw error
+  sessionStorage.removeItem('sb_jwt')
   sessionStorage.removeItem('authToken')
-  delete authApi.defaults.headers.common.Authorization
+  sessionStorage.removeItem('user')
 }
 
-export default authApi
+/**
+ * Get current user from Supabase session
+ * @returns {Promise<object|null>} User object or null
+ */
+export const getCurrentUser = async () => {
+  const { data } = await supabase.auth.getUser()
+  return data.user || null
+}
+
+/**
+ * Refresh the current session
+ * @returns {Promise<object|null>} Session object or null
+ */
+export const refreshSession = async () => {
+  const { data, error } = await supabase.auth.refreshSession()
+  if (error) throw error
+  return data.session
+}
+
+export default {
+  getAuthToken,
+  loginWithGoogle,
+  logout,
+  getCurrentUser,
+  refreshSession,
+}

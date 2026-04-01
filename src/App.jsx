@@ -3,6 +3,10 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/AppLayout'
+import ToastContainer from './components/Toast'
+import { ToastProvider } from './context/ToastContext'
+import ErrorBoundary from './components/ErrorBoundary'
+import { useNotificationSubscription } from './hooks/useNotificationSubscription'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import HomePage from './pages/HomePage'
@@ -22,8 +26,13 @@ import WalletPage from './pages/WalletPage'
 import NotificationsPage from './pages/NotificationsPage'
 import TransactionRatingPage from './pages/TransactionRatingPage'
 
+function NotificationListener() {
+  useNotificationSubscription()
+  return null
+}
+
 function App() {
-  const { fetchUserProfile, isLoading } = useAuthStore()
+  const { fetchUserProfile, isLoading, user } = useAuthStore()
   const [hasTriedInitialAuth, setHasTriedInitialAuth] = useState(false)
 
   // Try to fetch user profile once on mount if we have a token
@@ -57,11 +66,15 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+    <ToastProvider>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <ToastContainer />
+          {user && <NotificationListener />}
+          <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           <Route
             path="/"
@@ -195,8 +208,10 @@ function App() {
 
         {/* Catch‑all redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
+  </ToastProvider>
   )
 }
 

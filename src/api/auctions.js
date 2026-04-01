@@ -15,9 +15,13 @@ import api from './baseApi'
 /**
  * Get all auctions in a session
  * @param {string} sessionId - Session ID
+ * @param {number} page - Page number (default: 0)
+ * @param {number} size - Page size (default: 50)
  */
-export const getAuctionsBySession = (sessionId) => {
-  return api.get(`/auctions/session/${sessionId}`)
+export const getAuctionsBySession = (sessionId, page = 0, size = 50) => {
+  return api.get(`/auctions/session/${sessionId}`, {
+    params: { page, size },
+  })
 }
 
 /**
@@ -87,9 +91,13 @@ export const cancelProxyBid = (auctionId) => {
 /**
  * Get live chat messages for an auction
  * @param {string} auctionId - Auction ID
+ * @param {number} page - Page number (default: 0)
+ * @param {number} size - Page size (default: 50)
  */
-export const getLiveChatMessages = (auctionId) => {
-  return api.get(`/auctions/${auctionId}/messages`)
+export const getLiveChatMessages = (auctionId, page = 0, size = 50) => {
+  return api.get(`/auctions/${auctionId}/messages`, {
+    params: { page, size },
+  })
 }
 
 /**
