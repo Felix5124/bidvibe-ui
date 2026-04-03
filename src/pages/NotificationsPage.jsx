@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { getNotifications, getUnreadCount, markAllAsRead, markAsRead } from '../api/notifications'
 import { NotificationsListSkeleton } from '../components/Skeleton'
+import PageHeaderFrame from '../components/PageHeaderFrame'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -45,7 +46,7 @@ export default function NotificationsPage() {
       await loadData(page)
     } catch (err) {
       console.error('[NotificationsPage] Failed to mark notification as read', err)
-      setError(err?.response?.data?.message || 'Đánh dấu da doc thất bại.')
+      setError(err?.response?.data?.message || 'Đánh dấu đã đọc thất bại.')
     }
   }
 
@@ -56,17 +57,22 @@ export default function NotificationsPage() {
       await loadData(page)
     } catch (err) {
       console.error('[NotificationsPage] Failed to mark all notifications as read', err)
-      setError(err?.response?.data?.message || 'Đánh dấu tat ca da doc thất bại.')
+      setError(err?.response?.data?.message || 'Đánh dấu tat ca đã đọc thất bại.')
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Trung tâm thông báo</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
-        </div>
+        <PageHeaderFrame
+          title="Trung tâm thông báo"
+          description="Nhận cập nhật trạng thái phiên, giao dịch và các sự kiện quan trọng theo thời gian thực."
+          actions={
+            <Link to="/" className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium">
+              Về trang chủ
+            </Link>
+          }
+        />
 
         <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
           <p className="text-gray-700">Chưa đọc: <span className="font-semibold">{unreadCount}</span></p>
@@ -91,7 +97,7 @@ export default function NotificationsPage() {
                   </div>
                   {!noti.read && (
                     <button type="button" onClick={() => handleMarkOne(noti.id)} className="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                      Da doc
+                      đã đọc
                     </button>
                   )}
                 </div>

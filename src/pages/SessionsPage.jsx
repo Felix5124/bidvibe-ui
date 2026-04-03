@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listSessions } from '../api/sessions'
 import { SessionsListSkeleton } from '../components/Skeleton'
+import PageHeaderFrame from '../components/PageHeaderFrame'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -122,18 +123,10 @@ export default function SessionsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 text-white p-6 md:p-8 mb-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold">Danh sách phiên đấu giá</h1>
-              <p className="mt-2 text-slate-200">Theo dõi lịch mở phiên và truy cập nhanh vào các phòng đấu giá đang hoạt động.</p>
-            </div>
-            <Link to="/" className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/15 border border-white/25 hover:bg-white/25 transition-colors font-medium">
-              Về trang chủ
-            </Link>
-          </div>
-        </div>
+        <PageHeaderFrame
+          title="Danh sách phiên đấu giá"
+          description="Theo dõi lịch mở phiên và truy cập nhanh vào các phòng đấu giá đang hoạt động."
+        />
 
         {/* Filters */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">

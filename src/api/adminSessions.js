@@ -109,8 +109,12 @@ export const stopSession = (sessionId) => {
  * Reset timer for an auction
  * @param {string} auctionId - Auction ID
  */
-export const resetAuctionTimer = (auctionId) => {
-  return api.post(`/admin/auctions/${auctionId}/reset-timer`)
+export const resetAuctionTimer = (auctionId, minutes) => {
+  return api.post(`/admin/auctions/${auctionId}/reset-timer`, null, {
+    params: {
+      minutes,
+    },
+  })
 }
 
 /**

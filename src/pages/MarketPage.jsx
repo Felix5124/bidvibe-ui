@@ -2,11 +2,11 @@
 import { Link } from "react-router-dom";
 import { searchListings } from "../api/market";
 import { MarketListingsSkeleton } from "../components/Skeleton";
+import PageHeaderFrame from '../components/PageHeaderFrame'
+import { RARITY_OPTIONS, formatRarity } from '../utils/rarity'
 
 const readApiData = (response) =>
   response?.data?.data ?? response?.data ?? null;
-
-const RARITY_OPTIONS = ["", "COMMON", "RARE", "LEGENDARY"];
 
 export default function MarketPage() {
   const [filters, setFilters] = useState({ keyword: "", rarity: "" });
@@ -58,15 +58,10 @@ export default function MarketPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Chợ đen</h1>
-          <Link
-            to="/"
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Về trang chủ
-          </Link>
-        </div>
+        <PageHeaderFrame
+          title="Chợ đen"
+          description="Khám phá các tin đăng cộng đồng và mua vật phẩm trực tiếp với mức giá phù hợp."
+        />
 
         <form
           onSubmit={onSearch}
@@ -87,9 +82,10 @@ export default function MarketPage() {
             }
             className="px-3 py-2 border border-gray-300 rounded-md"
           >
+            <option value="">Tất cả phân loại</option>
             {RARITY_OPTIONS.map((option) => (
-              <option key={option || "ALL"} value={option}>
-                {option || "All Rarity"}
+              <option key={option} value={option}>
+                {formatRarity(option)}
               </option>
             ))}
           </select>
@@ -133,7 +129,10 @@ export default function MarketPage() {
                   {listing.item?.description || "Không có mo ta."}
                 </p>
                 <div className="mt-3 text-sm text-gray-700">
-                  Seller: {listing.seller?.nickname || "-"}
+                  Người bán: {listing.seller?.nickname || "-"}
+                </div>
+                <div className="mt-1 text-sm text-gray-700">
+                  Phân loại: {formatRarity(listing.item?.rarity)}
                 </div>
                 <div className="mt-3 text-xl font-bold text-emerald-700">
                   {formatVnd(listing.askingPrice)}

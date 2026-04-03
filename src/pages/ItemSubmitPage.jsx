@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { submitItem } from '../api/items'
 import { uploadFileToSupabase } from '../lib/supabase'
-
-const RARITY_OPTIONS = ['COMMON', 'RARE', 'LEGENDARY']
+import PageHeaderFrame from '../components/PageHeaderFrame'
+import { RARITY_OPTIONS, formatRarity } from '../utils/rarity'
 
 export default function ItemSubmitPage() {
   const navigate = useNavigate()
@@ -91,10 +91,10 @@ export default function ItemSubmitPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Ký gửi vật phẩm</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
-        </div>
+        <PageHeaderFrame
+          title="Ký gửi vật phẩm"
+          description="Đăng thông tin và tải ảnh để gửi vật phẩm vào hệ thống đấu giá."
+        />
 
         <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
           <div>
@@ -111,7 +111,7 @@ export default function ItemSubmitPage() {
             <label htmlFor="rarity" className="block text-sm font-medium text-gray-700 mb-1">Độ hiếm</label>
             <select id="rarity" name="rarity" value={form.rarity} onChange={onChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
               {RARITY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
+                <option key={opt} value={opt}>{formatRarity(opt)}</option>
               ))}
             </select>
           </div>

@@ -41,6 +41,7 @@ function AverageRating({ ratings }) {
     </div>
   )
 }
+      import PageHeaderFrame from '../components/PageHeaderFrame'
 
 export default function UserProfilePage() {
   const { id } = useParams()
@@ -84,12 +85,10 @@ export default function UserProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Hồ sơ công khai</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">
-            Về trang chủ
-          </Link>
-        </div>
+              <PageHeaderFrame
+                title="Hồ sơ công khai"
+                description="Xem thông tin uy tín và lịch sử đánh giá của người dùng trong cộng đồng."
+              />
 
         {loading && <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải dữ liệu...</div>}
 

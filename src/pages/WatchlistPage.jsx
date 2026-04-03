@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { getWatchlist, removeFromWatchlist, toggleWatchlist } from '../api/users'
 import { ItemsListSkeleton } from '../components/Skeleton'
+import PageHeaderFrame from '../components/PageHeaderFrame'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -63,10 +64,11 @@ export default function WatchlistPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Danh sách theo dõi</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
-        </div>
+        <PageHeaderFrame
+          title="Danh sách theo dõi"
+          description="Theo dõi các vật phẩm bạn quan tâm để không bỏ lỡ cơ hội mua phù hợp."
+          actions={<Link to="/" className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium">Về trang chủ</Link>}
+        />
 
         <form onSubmit={handleAddById} className="mb-5 bg-white border border-gray-200 rounded-xl p-4 flex gap-2">
           <input

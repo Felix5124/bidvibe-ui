@@ -5,6 +5,8 @@ import { buyListing, cancelListing, getListingDetail, getListingMessages, sendLi
 import { createStompClient } from '../lib/stomp'
 import { useAuthStore } from '../store/authStore'
 import { formatVND } from '../utils/formatVND'
+import PageHeaderFrame from '../components/PageHeaderFrame'
+import { formatRarity } from '../utils/rarity'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -122,10 +124,10 @@ export default function MarketDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Chi tiết tin đăng</h1>
-          <Link to="/market" className="text-blue-600 hover:text-blue-700 font-medium">Ve cho den</Link>
-        </div>
+        <PageHeaderFrame
+          title="Chi tiết tin đăng"
+          description="Theo dõi thông tin niêm yết, thương lượng và thực hiện giao dịch an toàn."
+        />
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
@@ -144,7 +146,7 @@ export default function MarketDetailPage() {
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
                 <p>Seller: {listing.seller?.nickname || '-'}</p>
-                <p>Rarity: {listing.item?.rarity || '-'}</p>
+                <p>Phân loại: {formatRarity(listing.item?.rarity)}</p>
                 <p>Gia niem yet: <span className="font-semibold text-emerald-700">{formatVND(listing.askingPrice)}</span></p>
                 <p>Buyer: {listing.buyer?.nickname || '-'}</p>
               </div>

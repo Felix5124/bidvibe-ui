@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { getBalance, getTransactionHistory, requestDeposit, requestWithdraw } from '../api/wallet'
+import PageHeaderFrame from '../components/PageHeaderFrame'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -90,10 +91,11 @@ export default function WalletPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Ví tiền</h1>
-          <Link to="/" className="text-blue-600 hover:text-blue-700 font-medium">Về trang chủ</Link>
-        </div>
+        <PageHeaderFrame
+          title="Ví tiền"
+          description="Quản lý số dư, gửi yêu cầu nạp rút và theo dõi lịch sử giao dịch của bạn."
+          actions={<Link to="/" className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium">Về trang chủ</Link>}
+        />
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 

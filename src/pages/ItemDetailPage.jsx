@@ -2,6 +2,8 @@
 import { Link, useParams } from 'react-router-dom'
 import { getItemDetail } from '../api/items'
 import { getPriceHistory } from '../api/analytics'
+import PageHeaderFrame from '../components/PageHeaderFrame'
+import { formatRarity } from '../utils/rarity'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -18,13 +20,22 @@ export default function ItemDetailPage() {
       setLoading(true)
       setError(null)
       try {
-        const [itemRes, historyRes] = await Promise.all([
-          getItemDetail(id),
-          getPriceHistory(id),
-        ])
+        const itemRes = await getItemDetail(id)
         setItem(readApiData(itemRes))
-        const historyData = readApiData(historyRes)
-        setPriceHistory(historyData?.pricePoints || [])
+
+        try {
+          const historyRes = await getPriceHistory(id)
+          const historyData = readApiData(historyRes)
+          setPriceHistory(historyData?.pricePoints || [])
+        } catch (historyErr) {
+          // Older backend versions may return 404 when item has never joined an auction.
+          if (historyErr?.response?.status === 404) {
+            setPriceHistory([])
+          } else {
+            console.warn('[ItemDetailPage] Failed to load price history, fallback to empty list', historyErr)
+            setPriceHistory([])
+          }
+        }
       } catch (err) {
         console.error('[ItemDetailPage] Failed to load item detail/price history', err)
         setError(err?.response?.data?.message || 'Không tải được chi tiet vat pham.')
@@ -41,12 +52,10 @@ export default function ItemDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Chi tiết vật phẩm</h1>
-          <Link to="/me/inventory" className="text-blue-600 hover:text-blue-700 font-medium">
-            Ve kho do
-          </Link>
-        </div>
+        <PageHeaderFrame
+          title="Chi tiết vật phẩm"
+          description="Xem thông tin, chủ sở hữu và lịch sử giá của vật phẩm."
+        />
 
         {loading && <div className="bg-white border border-gray-200 rounded-lg p-8 text-gray-600">Đang tải du lieu...</div>}
 
@@ -67,7 +76,7 @@ export default function ItemDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Thông tin cơ bản</h3>
-                <p className="text-sm text-gray-700">Rarity: {item.rarity || '-'}</p>
+                <p className="text-sm text-gray-700">Phân loại: {formatRarity(item.rarity)}</p>
                 <p className="text-sm text-gray-700 mt-1">
                   Ngày tạo: {item.createdAt ? new Date(item.createdAt).toLocaleString('vi-VN') : '-'}
                 </p>

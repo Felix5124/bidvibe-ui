@@ -43,6 +43,14 @@ export const confirmReceipt = (itemId) => {
 }
 
 /**
+ * Delete an item that has been rejected
+ * @param {string} itemId - Mã vật phẩm
+ */
+export const deleteRejectedItem = (itemId) => {
+  return api.delete(`/items/${itemId}`)
+}
+
+/**
  * List an item on the market
  * @param {Object} data - {itemId, askingPrice}
  */
@@ -55,6 +63,7 @@ export default {
   getInventory,
   getItemDetail,
   confirmReceipt,
+  deleteRejectedItem,
   listOnMarket,
 }
 

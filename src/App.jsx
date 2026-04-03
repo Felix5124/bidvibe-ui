@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/AppLayout'
+import ScrollToTop from './components/ScrollToTop'
 import ToastContainer from './components/Toast'
 import { ToastProvider } from './context/ToastContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -69,6 +70,7 @@ function App() {
     <ToastProvider>
       <ErrorBoundary>
         <BrowserRouter>
+          <ScrollToTop />
           <ToastContainer />
           {user && <NotificationListener />}
           <Routes>
