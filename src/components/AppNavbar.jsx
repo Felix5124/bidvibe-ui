@@ -88,21 +88,27 @@ export default function AppNavbar() {
         </div>
         <div className="flex items-center gap-3">
           {user ? (
-            <div className="hidden md:flex items-center gap-2 rounded-full  px-3 py-1.5">
-              {user?.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={displayName}
-                  className="h-8 w-8 rounded-full object-cover border border-slate-200"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-blue-600 text-white text-sm font-semibold flex items-center justify-center">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <p className="text-sm font-semibold text-slate-700 max-w-45 truncate">
-                {displayName}
-              </p>
+            <div className="hidden md:flex items-center gap-2 rounded-full px-3 py-1.5">
+              <Link
+                to="/me/profile"
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+                title="Xem hồ sơ"
+              >
+                {user?.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-blue-600 text-white text-sm font-semibold flex items-center justify-center">
+                    {displayName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <p className="text-sm font-semibold text-slate-700 max-w-45 truncate">
+                  {displayName}
+                </p>
+              </Link>
               <button
                 onClick={logout}
                 className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm cursor-pointer ml-2"

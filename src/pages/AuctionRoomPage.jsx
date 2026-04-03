@@ -11,11 +11,14 @@ import {
   setProxyBid,
   submitSealedBid,
 } from '../api/auctions'
+import { muteUser, unmuteUser, kickUserFromAuction } from '../api/adminUsers'
+import { getUserProfile } from '../api/users'
 import { createStompClient } from '../lib/stomp'
 import { useAuthStore } from '../store/authStore'
 import { formatVND } from '../utils/formatVND'
 import Countdown from '../components/Countdown'
 import PageHeaderFrame from '../components/PageHeaderFrame'
+import { useToast } from '../context/ToastContext'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
@@ -42,6 +45,7 @@ const AUCTION_TYPE_LABEL = {
 export default function AuctionRoomPage() {
   const { id } = useParams()
   const { user } = useAuthStore()
+  const toast = useToast()
 
   const [auction, setAuction] = useState(null)
   const [bids, setBids] = useState([])
@@ -54,6 +58,10 @@ export default function AuctionRoomPage() {
   const [sealedAmount, setSealedAmount] = useState('')
   const [proxyMaxAmount, setProxyMaxAmount] = useState('')
   const [chatInput, setChatInput] = useState('')
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetUser: null })
+  const [profileModalUser, setProfileModalUser] = useState(null)
+  const [profileDetail, setProfileDetail] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
 
   // Load auction detail for the room header and status panel.
   const loadAuction = useCallback(async () => {
@@ -249,6 +257,68 @@ export default function AuctionRoomPage() {
       console.error('[AuctionRoomPage] Failed to send chat message', err)
       setError(err?.response?.data?.message || 'Gui tin nhan thất bại.')
     }
+  }
+
+  const handleContextMenu = (e, sender) => {
+    if (user?.role !== 'ADMIN') return
+    e.preventDefault()
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, targetUser: sender })
+  }
+
+  const closeContextMenu = () => setContextMenu({ visible: false, x: 0, y: 0, targetUser: null })
+
+  const handleMuteUser = async () => {
+    if (!contextMenu.targetUser) return
+    try {
+      await muteUser(contextMenu.targetUser.id)
+      toast.success('Đã tắt tiếng người dùng.')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Không thể tắt tiếng.')
+    }
+    closeContextMenu()
+  }
+
+  const handleUnmuteUser = async () => {
+    if (!contextMenu.targetUser) return
+    try {
+      await unmuteUser(contextMenu.targetUser.id)
+      toast.success('Đã bỏ tắt tiếng.')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Không thể bỏ tắt tiếng.')
+    }
+    closeContextMenu()
+  }
+
+  const handleKickUser = async () => {
+    if (!contextMenu.targetUser || !id) return
+    try {
+      await kickUserFromAuction(contextMenu.targetUser.id, id)
+      toast.success('Đã đuổi người dùng khỏi phòng.')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Không thể đuổi người dùng.')
+    }
+    closeContextMenu()
+  }
+
+  const handleViewProfile = async (sender) => {
+    if (!sender?.id) return
+    setProfileModalUser(sender)
+    setProfileDetail(null)
+    setProfileLoading(true)
+    try {
+      const response = await getUserProfile(sender.id)
+      setProfileDetail(readApiData(response))
+    } catch (err) {
+      console.error('[AuctionRoomPage] Failed to load user profile', err)
+      toast.error('Không thể tải thông tin người dùng.')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  const closeProfileModal = () => {
+    setProfileModalUser(null)
+    setProfileDetail(null)
   }
 
   const canBuyNow = useMemo(() => auction?.status === 'ACTIVE', [auction])
@@ -462,20 +532,30 @@ export default function AuctionRoomPage() {
                       const senderName = msg.sender?.nickname || 'Ẩn danh'
                       const senderAvatar = msg.sender?.avatarUrl || msg.senderAvatarUrl || null
                       return (
-                        <div key={msg.id} className={`p-3 rounded-lg ${mine ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div 
+                          key={msg.id} 
+                          className={`p-3 rounded-lg ${mine ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}
+                          onContextMenu={(e) => handleContextMenu(e, msg.sender)}
+                        >
                           <p className="text-sm font-medium text-slate-900">{senderName}</p>
                           <div className="mt-2 flex items-start gap-2">
-                            {senderAvatar ? (
-                              <img
-                                src={senderAvatar}
-                                alt={senderName}
-                                className="h-8 w-8 rounded-full object-cover border border-slate-200 shrink-0"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded-full bg-slate-300 text-slate-700 text-xs font-semibold flex items-center justify-center shrink-0">
-                                {senderName.slice(0, 1).toUpperCase()}
-                              </div>
-                            )}
+                            <button
+                              onClick={() => { if (msg.sender) handleViewProfile(msg.sender); }}
+                              className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              title="Xem hồ sơ"
+                            >
+                              {senderAvatar ? (
+                                <img
+                                  src={senderAvatar}
+                                  alt={senderName}
+                                  className="h-8 w-8 rounded-full object-cover border border-slate-200"
+                                />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full bg-slate-300 text-slate-700 text-xs font-semibold flex items-center justify-center">
+                                  {senderName.slice(0, 1).toUpperCase()}
+                                </div>
+                              )}
+                            </button>
                             <p className="text-sm text-slate-700">{msg.content}</p>
                           </div>
                         </div>
@@ -497,7 +577,99 @@ export default function AuctionRoomPage() {
           </div>
         )}
       </div>
-    </div>
+
+      {/* Context Menu for Admin */}
+      {contextMenu.visible && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={closeContextMenu} />
+          <div 
+            className="fixed bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-50"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => { handleViewProfile(contextMenu.targetUser); closeContextMenu(); }}
+              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              👁️ Xem hồ sơ
+            </button>
+            <button 
+              onClick={handleMuteUser}
+              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              🔇 Tắt tiếng
+            </button>
+            <button 
+              onClick={handleUnmuteUser}
+              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              🔊 Bỏ tắt tiếng
+            </button>
+            <button 
+              onClick={handleKickUser}
+              className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+            >
+              👢 Đuổi khỏi phòng
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Profile Modal */}
+      {profileModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeProfileModal}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl m-4" onClick={(e) => e.stopPropagation()}>
+            {profileLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Đang tải...</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-4 mb-4">
+                  {profileDetail?.avatarUrl || profileModalUser?.avatarUrl ? (
+                    <img src={profileDetail?.avatarUrl || profileModalUser?.avatarUrl} alt={profileDetail?.nickname || profileModalUser?.nickname || 'User'} className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-600">
+                      {(profileDetail?.nickname || profileDetail?.email || profileModalUser?.nickname || profileModalUser?.email || '?')[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="font-semibold text-lg">{profileDetail?.nickname || profileModalUser?.nickname || 'Người dùng'}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${profileDetail?.isBanned ? 'bg-red-100 text-red-700' : profileDetail?.isMuted ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                      {profileDetail?.isBanned ? 'Bị khóa' : profileDetail?.isMuted ? 'Bị tắt tiếng' : 'Hoạt động'}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-500">Email</p>
+                    <p className="font-medium">{profileDetail?.email || profileModalUser?.email || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Vai trò</p>
+                    <p className="font-medium">{profileDetail?.role || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Số điện thoại</p>
+                    <p className="font-medium">{profileDetail?.phone || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Địa chỉ</p>
+                    <p className="font-medium">{profileDetail?.address || '-'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-gray-500">Điểm uy tín</p>
+                    <p className="font-medium">{profileDetail?.reputationScore ?? '-'}</p>
+                  </div>
+                </div>
+              </>
+            )}
+            <button onClick={closeProfileModal} className="mt-4 w-full py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Đóng</button>
+          </div>
+        </div>
+      )}
+    </div >
   )
 }
 

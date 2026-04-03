@@ -100,9 +100,13 @@ export default function UserProfilePage() {
           <>
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-2xl font-bold text-blue-600">
-                  {(profile.nickname || profile.email || '?')[0].toUpperCase()}
-                </div>
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt={profile.nickname || 'User'} className="w-16 h-16 rounded-full object-cover" />
+                ) : (
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-2xl font-bold text-blue-600">
+                    {(profile.nickname || profile.email || '?')[0].toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1">
                   <h2 className="text-2xl font-semibold text-gray-900">{profile.nickname || 'Người dùng'}</h2>
                   <p className="text-gray-500 text-sm">{profile.email}</p>
@@ -150,14 +154,21 @@ export default function UserProfilePage() {
                   {ratings.map((rating) => (
                     <div key={rating.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
-                            {(rating.fromUser?.nickname || '?')[0].toUpperCase()}
-                          </div>
+                        <Link 
+                          to={`/users/${rating.fromUser?.id}`}
+                          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                        >
+                          {rating.fromUser?.avatarUrl ? (
+                            <img src={rating.fromUser.avatarUrl} alt={rating.fromUser?.nickname || 'User'} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                              {(rating.fromUser?.nickname || '?')[0].toUpperCase()}
+                            </div>
+                          )}
                           <span className="font-medium text-gray-900">
                             {rating.fromUser?.nickname || 'Ẩn danh'}
                           </span>
-                        </div>
+                        </Link>
                         <StarRating stars={rating.stars} />
                       </div>
                       {rating.comment && (

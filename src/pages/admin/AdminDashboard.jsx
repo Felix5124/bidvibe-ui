@@ -121,10 +121,13 @@ export default function AdminDashboard() {
   const [isProcessingAction, setIsProcessingAction] = useState(false)
 
   const [rejectReasonByItem, setRejectReasonByItem] = useState({})
-  const [kickAuctionByUser, setKickAuctionByUser] = useState({})
   const [selectedUserDetail, setSelectedUserDetail] = useState(null)
   const [selectedItemDetail, setSelectedItemDetail] = useState(null)
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false)
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
+  const [selectedRole, setSelectedRole] = useState('USER')
+  const [isRoleConfirmModalOpen, setIsRoleConfirmModalOpen] = useState(false)
 
   const [sessionForm, setSessionForm] = useState({ title: '', type: 'ENGLISH', startTime: '' })
   const [selectedSessionId, setSelectedSessionId] = useState(null)
@@ -314,7 +317,7 @@ export default function AdminDashboard() {
   }
 
   const runAdminAction = async (fn, options = {}) => {
-    const { reloadTab = true, reloadOverview = true, successMessage } = options
+    const { reloadTab = true, reloadOverview = true, successMessage, onSuccess } = options
     setAdminError(null)
     setIsProcessingAction(true)
 
@@ -328,6 +331,9 @@ export default function AdminDashboard() {
       }
       if (reloadOverview) {
         await loadOverview()
+      }
+      if (onSuccess) {
+        onSuccess()
       }
     } catch (error) {
       const statusCode = error?.response?.status
@@ -354,19 +360,6 @@ export default function AdminDashboard() {
       console.error('[AdminDashboard] Failed to load user detail', error)
       setAdminError(error?.response?.data?.message || 'Không tải được chi tiet user.')
     }
-  }
-
-  const handleKickUser = async (userId) => {
-    const auctionId = kickAuctionByUser[userId]?.trim()
-    if (!auctionId) {
-      setAdminError('Nhập auctionId truoc khi kick user.')
-      return
-    }
-
-    await runAdminAction(() => kickUserFromAuction(userId, auctionId), {
-      reloadTab: false,
-      reloadOverview: false,
-    })
   }
 
   const handleLoadItemDetail = async (itemId) => {
@@ -584,32 +577,35 @@ export default function AdminDashboard() {
         {users.map((u) => (
           <div key={u.id} className="border border-gray-200 rounded p-4 flex flex-col gap-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="font-medium text-gray-900">{u.nickname || u.email}</p>
-                <p className="text-sm text-gray-600">{u.email} | role: {u.role}</p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { handleLoadUserDetail(u.id); setIsUserModalOpen(true); }}
+                  className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  title="Xem chi tiết"
+                >
+                  {u.avatarUrl ? (
+                    <img src={u.avatarUrl} alt={u.nickname || u.email} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
+                      {(u.nickname || u.email || '?')[0].toUpperCase()}
+                    </div>
+                  )}
+                </button>
+                <div>
+                  <p className="font-medium text-gray-900">{u.nickname || u.email}</p>
+                  <p className="text-sm text-gray-600">{u.email} | role: {u.role}</p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => handleLoadUserDetail(u.id)} className="px-2 py-1 text-sm rounded bg-gray-700 text-white hover:bg-gray-800 transition-colors" disabled={isProcessingAction}>Chi tiết</button>
-                <button onClick={() => runAdminAction(() => changeUserRole(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN'), { successMessage: 'Đã đổi vai trò người dùng.' })} className="px-2 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đổi vai trò</button>
-                <button onClick={() => runAdminAction(() => muteUser(u.id), { successMessage: 'Đã tắt tiếng người dùng.' })} className="px-2 py-1 text-sm rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Tắt tiếng</button>
-                <button onClick={() => runAdminAction(() => unmuteUser(u.id), { successMessage: 'Đã bỏ tắt tiếng người dùng.' })} className="px-2 py-1 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Bỏ tắt tiếng</button>
+                <button onClick={() => { handleLoadUserDetail(u.id); setIsUserModalOpen(true); }} className="px-2 py-1 text-sm rounded bg-gray-700 text-white hover:bg-gray-800 transition-colors" disabled={isProcessingAction}>Chi tiết</button>
+                <button onClick={() => { setSelectedUserDetail(u); setSelectedRole(u.role); setIsRoleModalOpen(true); }} className="px-2 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đổi vai trò</button>
                 <button onClick={() => runAdminAction(() => banUser(u.id), { successMessage: 'Đã khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Khóa</button>
                 <button onClick={() => runAdminAction(() => unbanUser(u.id), { successMessage: 'Đã mở khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Mở khóa</button>
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={kickAuctionByUser[u.id] || ''}
-                onChange={(e) => setKickAuctionByUser((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                placeholder="Nhập mã phòng đấu giá để đá"
-                className="px-2 py-1 border border-gray-300 rounded text-sm flex-1 min-w-64"
-              />
-              <button onClick={() => handleKickUser(u.id)} className="px-2 py-1 text-sm rounded bg-rose-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đá khỏi phòng</button>
-            </div>
           </div>
         ))}
-        {users.length === 0 && <p className="text-gray-600">Không có user nao.</p>}
+        {users.length === 0 && <p className="text-gray-600">Không có user nào.</p>}
       </div>
 
       {usersMeta && usersMeta.totalPages > 1 && (
@@ -624,16 +620,110 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {selectedUserDetail && (
-        <div className="mt-5 border border-gray-200 rounded p-4">
-          <h3 className="font-semibold text-gray-900 mb-2">Chi tiết người dùng</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
-            <p>ID: {selectedUserDetail.id}</p>
-            <p>Email: {selectedUserDetail.email || '-'}</p>
-            <p>Nickname: {selectedUserDetail.nickname || '-'}</p>
-            <p>Vai trò: {selectedUserDetail.role || '-'}</p>
-            <p>Phone: {selectedUserDetail.phone || '-'}</p>
-            <p>Address: {selectedUserDetail.address || '-'}</p>
+      {/* User Detail Modal */}
+      {isUserModalOpen && selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setIsUserModalOpen(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-4 mb-4">
+              {selectedUserDetail.avatarUrl ? (
+                <img src={selectedUserDetail.avatarUrl} alt={selectedUserDetail.nickname || selectedUserDetail.email} className="w-16 h-16 rounded-full object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-600">
+                  {(selectedUserDetail.nickname || selectedUserDetail.email || '?')[0].toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h3 className="font-semibold text-lg">{selectedUserDetail.nickname || 'N/A'}</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${selectedUserDetail.isBanned ? 'bg-red-100 text-red-700' : selectedUserDetail.isMuted ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                  {selectedUserDetail.isBanned ? 'Bị khóa' : selectedUserDetail.isMuted ? 'Bị tắt tiếng' : 'Hoạt động'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-gray-500">Email</p>
+                <p className="font-medium">{selectedUserDetail.email || '-'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Vai trò</p>
+                <p className="font-medium">{selectedUserDetail.role || '-'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Số điện thoại</p>
+                <p className="font-medium">{selectedUserDetail.phone || '-'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Địa chỉ</p>
+                <p className="font-medium">{selectedUserDetail.address || '-'}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-gray-500">Điểm uy tín</p>
+                <p className="font-medium">{selectedUserDetail.reputationScore ?? '-'}</p>
+              </div>
+            </div>
+            <button onClick={() => setIsUserModalOpen(false)} className="mt-4 w-full py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Đóng</button>
+          </div>
+        </div>
+      )}
+
+      {/* Change Role Modal - Step 1: Select Role */}
+      {isRoleModalOpen && selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setIsRoleModalOpen(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl m-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">Đổi vai trò người dùng</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Chọn vai trò mới cho <strong>{selectedUserDetail.nickname || selectedUserDetail.email}</strong>
+            </p>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 mb-4"
+            >
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+            <div className="flex gap-2">
+              <button onClick={() => setIsRoleModalOpen(false)} className="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Hủy</button>
+              <button
+                onClick={() => {
+                  if (selectedUserDetail.role === selectedRole) {
+                    toast.warning(`${selectedUserDetail.nickname || selectedUserDetail.email} đã là role ${selectedRole} rồi.`);
+                    setIsRoleModalOpen(false);
+                    return;
+                  }
+                  setIsRoleModalOpen(false);
+                  setIsRoleConfirmModalOpen(true);
+                }}
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Role Modal - Step 2: Confirm */}
+      {isRoleConfirmModalOpen && selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setIsRoleConfirmModalOpen(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl m-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">Xác nhận đổi vai trò</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Bạn có chắc muốn đổi vai trò của <strong>{selectedUserDetail.nickname || selectedUserDetail.email}</strong> thành <strong className="text-indigo-600">{selectedRole}</strong> không?
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setIsRoleConfirmModalOpen(false)} className="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Hủy</button>
+              <button
+                onClick={() => {
+                  runAdminAction(() => changeUserRole(selectedUserDetail.id, selectedRole), { successMessage: 'Đã đổi vai trò.' });
+                  setIsRoleConfirmModalOpen(false);
+                }}
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                disabled={isProcessingAction}
+              >
+                Xác nhận
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1390,25 +1480,23 @@ const renderTabContent = () => {
                       if (images.length > 0) {
                         return (
                           <>
-                            <div className="grid grid-cols-2 gap-3">
-                              {images.slice(0, 4).map((url, index) => (
-                                <div key={index} className="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white flex items-center justify-center">
-                                  <img 
-                                    src={url} 
-                                    alt={`${selectedItemDetail.name} - ${index + 1}`}
-                                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-                                    onError={(e) => {
-                                      e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="%23f1f5f9"><rect width="100" height="100"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Hình ${index + 1}</text></svg>'
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            {images.length > 4 && (
-                              <p className="text-xs text-slate-500 mt-2 text-center">
-                                + {images.length - 4} hình ảnh khác
-                              </p>
-                            )}
+                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                               {images.map((url, index) => (
+                                 <div key={index} className="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white flex items-center justify-center">
+                                   <img 
+                                     src={url} 
+                                     alt={`${selectedItemDetail.name} - ${index + 1}`}
+                                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                     onError={(e) => {
+                                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="%23f1f5f9"><rect width="100" height="100"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Hình ${index + 1}</text></svg>'
+                                     }}
+                                   />
+                                 </div>
+                               ))}
+                             </div>
+                             <p className="text-xs text-slate-500 mt-2 text-center">
+                               Tổng cộng: {images.length} hình ảnh
+                             </p>
                           </>
                         );
                       }
