@@ -6,7 +6,6 @@
 // POST /api/admin/users/{id}/unmute - Unmute user
 // POST /api/admin/users/{id}/ban - Ban user
 // POST /api/admin/users/{id}/unban - Unban user
-// POST /api/admin/users/{id}/kick - Kick user from auction
 
 import api from './baseApi'
 
@@ -17,15 +16,23 @@ import api from './baseApi'
  * @param {number} size - Page size (default: 20)
  */
 export const listUsers = (filters = {}, page = 0, size = 20) => {
+  const params = { page, size }
+
+  if (filters.search != null && String(filters.search).trim() !== '') {
+    params.search = String(filters.search).trim()
+  }
+  if (filters.role != null && String(filters.role).trim() !== '') {
+    params.role = filters.role
+  }
+  if (typeof filters.isBanned === 'boolean') {
+    params.isBanned = filters.isBanned
+  }
+  if (typeof filters.isMuted === 'boolean') {
+    params.isMuted = filters.isMuted
+  }
+
   return api.get('/admin/users', {
-    params: {
-      search: filters.search,
-      role: filters.role,
-      isBanned: filters.isBanned,
-      isMuted: filters.isMuted,
-      page,
-      size,
-    },
+    params,
   })
 }
 
@@ -78,15 +85,6 @@ export const unbanUser = (userId) => {
   return api.post(`/admin/users/${userId}/unban`)
 }
 
-/**
- * Kick user from an auction
- * @param {string} userId - User ID
- * @param {string} auctionId - Auction ID
- */
-export const kickUserFromAuction = (userId, auctionId) => {
-  return api.post(`/admin/users/${userId}/kick`, { auctionId })
-}
-
 export default {
   listUsers,
   getUserDetail,
@@ -95,5 +93,4 @@ export default {
   unmuteUser,
   banUser,
   unbanUser,
-  kickUserFromAuction,
 }

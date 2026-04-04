@@ -1,4 +1,4 @@
-// User Profile & Account APIs
+﻿// User Profile & Account APIs
 // GET  /api/users/me - Get current user profile
 // PUT  /api/users/me - Update current user profile
 // GET  /api/users/{id} - Get public user profile
@@ -57,7 +57,7 @@ export const getWatchlist = (page = 0, size = 20) => {
 
 /**
  * Add or remove item from watchlist (toggle)
- * @param {string} itemId - Item ID to toggle
+ * @param {string} itemId - Mã vật phẩm to toggle
  */
 export const toggleWatchlist = (itemId) => {
   return api.post('/users/me/watchlist', { itemId })
@@ -65,7 +65,7 @@ export const toggleWatchlist = (itemId) => {
 
 /**
  * Remove item from watchlist
- * @param {string} itemId - Item ID to remove
+ * @param {string} itemId - Mã vật phẩm to remove
  */
 export const removeFromWatchlist = (itemId) => {
   return api.delete(`/users/me/watchlist/${itemId}`)
@@ -80,3 +80,4 @@ export default {
   toggleWatchlist,
   removeFromWatchlist,
 }
+

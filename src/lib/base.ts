@@ -1,6 +1,7 @@
-// src/lib/base.ts
+﻿// src/lib/base.ts
 import axios from 'axios'
 import { Client } from '@stomp/stompjs'
+import { logError, logHttpError } from './logger'
 
 // ======================
 // Constants & Types
@@ -43,6 +44,7 @@ export interface User {
   role?: 'USER' | 'ADMIN'
   isBanned?: boolean
   isMuted?: boolean
+  googleAvatar?: string
 }
 
 // Auction tối thiểu cho FE
@@ -66,10 +68,10 @@ export const apiClient = axios.create({
   withCredentials: true,
 })
 
-// Lấy JWT từ localStorage hoặc cookie
+// Lấy JWT từ sessionStorage hoặc cookie
 const getJwt = (): string | null => {
-  // Ưu tiên localStorage
-  const fromStorage = localStorage.getItem('sb_jwt')
+  // Ưu tiên sessionStorage
+  const fromStorage = sessionStorage.getItem('sb_jwt')
   if (fromStorage) return fromStorage
 
   // Fallback cookie (ví dụ: sb_jwt=...)
@@ -79,6 +81,21 @@ const getJwt = (): string | null => {
 
 // Gắn Authorization header tự động cho mọi request
 apiClient.interceptors.request.use((config) => {
+  // Check if user is banned (isForbidden flag in sessionStorage)
+  const userStr = sessionStorage.getItem('user')
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      if (user.isBanned) {
+        // User is banned, reject the request early to avoid unnecessary API calls
+        console.warn('Blocking API request for banned user:', config.url)
+        return Promise.reject(new Error('User is banned'))
+      }
+      } catch {
+        // Ignore JSON parse errors
+      }
+  }
+  
   const token = getJwt()
   if (token) {
     config.headers = config.headers || {}
@@ -92,14 +109,7 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    // Handle 401 - redirect to login
-    if (error.response?.status === 401) {
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('sb_jwt')
-      localStorage.removeItem('user')
-      window.dispatchEvent(new CustomEvent('auth:logout'))
-      window.location.href = '/login'
-    }
+    logHttpError('ApiClient', error)
     return Promise.reject(error)
   }
 )
