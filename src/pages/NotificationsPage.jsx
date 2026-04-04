@@ -97,7 +97,7 @@ export default function NotificationsPage() {
                   </div>
                   {!noti.read && (
                     <button type="button" onClick={() => handleMarkOne(noti.id)} className="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                      đã đọc
+                      Đã đọc
                     </button>
                   )}
                 </div>
