@@ -11,7 +11,7 @@ import {
   setProxyBid,
   submitSealedBid,
 } from '../api/auctions'
-import { muteUser, unmuteUser, kickUserFromAuction } from '../api/adminUsers'
+import { muteUser, unmuteUser } from '../api/adminUsers'
 import { getUserProfile } from '../api/users'
 import { createStompClient } from '../lib/stomp'
 import { useAuthStore } from '../store/authStore'
@@ -255,7 +255,12 @@ export default function AuctionRoomPage() {
       setChatInput('')
     } catch (err) {
       console.error('[AuctionRoomPage] Failed to send chat message', err)
-      setError(err?.response?.data?.message || 'Gui tin nhan thất bại.')
+      const errorMessage = err?.response?.data?.message || 'Gửi tin nhắn thất bại.'
+      if (err?.response?.status === 403) {
+        toast.error('Bạn đã bị tắt tiếng và không thể gửi tin nhắn.')
+      } else {
+        setError(errorMessage)
+      }
     }
   }
 
@@ -285,17 +290,6 @@ export default function AuctionRoomPage() {
       toast.success('Đã bỏ tắt tiếng.')
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Không thể bỏ tắt tiếng.')
-    }
-    closeContextMenu()
-  }
-
-  const handleKickUser = async () => {
-    if (!contextMenu.targetUser || !id) return
-    try {
-      await kickUserFromAuction(contextMenu.targetUser.id, id)
-      toast.success('Đã đuổi người dùng khỏi phòng.')
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Không thể đuổi người dùng.')
     }
     closeContextMenu()
   }
@@ -604,12 +598,6 @@ export default function AuctionRoomPage() {
               className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
             >
               🔊 Bỏ tắt tiếng
-            </button>
-            <button 
-              onClick={handleKickUser}
-              className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-            >
-              👢 Đuổi khỏi phòng
             </button>
           </div>
         </>

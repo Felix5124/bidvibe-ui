@@ -11,12 +11,9 @@ import {
 import {
   listUsers,
   getUserDetail,
+  changeUserRole,
   banUser,
   unbanUser,
-  muteUser,
-  unmuteUser,
-  changeUserRole,
-  kickUserFromAuction,
 } from '../../api/adminUsers'
 import {
   listItems,
@@ -599,8 +596,22 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => { handleLoadUserDetail(u.id); setIsUserModalOpen(true); }} className="px-2 py-1 text-sm rounded bg-gray-700 text-white hover:bg-gray-800 transition-colors" disabled={isProcessingAction}>Chi tiết</button>
                 <button onClick={() => { setSelectedUserDetail(u); setSelectedRole(u.role); setIsRoleModalOpen(true); }} className="px-2 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Đổi vai trò</button>
-                <button onClick={() => runAdminAction(() => banUser(u.id), { successMessage: 'Đã khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Khóa</button>
-                <button onClick={() => runAdminAction(() => unbanUser(u.id), { successMessage: 'Đã mở khóa người dùng.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Mở khóa</button>
+                 <button 
+                   onClick={() => runAdminAction(() => banUser(u.id), { successMessage: 'Đã khóa người dùng.' })}
+                   className={`px-2 py-1 text-sm rounded transition-colors ${u.isBanned ? 'bg-gray-400 text-gray-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                   disabled={isProcessingAction || u.isBanned}
+                   style={u.isBanned ? { backgroundColor: '#9ca3af', color: '#f3f4f6' } : {}}
+                 >
+                   Khóa
+                 </button>
+                 <button 
+                   onClick={() => runAdminAction(() => unbanUser(u.id), { successMessage: 'Đã mở khóa người dùng.' })}
+                   className={`px-2 py-1 text-sm rounded transition-colors ${!u.isBanned ? 'bg-gray-400 text-gray-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                   disabled={isProcessingAction || !u.isBanned}
+                   style={!u.isBanned ? { backgroundColor: '#9ca3af', color: '#f3f4f6' } : {}}
+                 >
+                   Mở khóa
+                 </button>
               </div>
             </div>
           </div>

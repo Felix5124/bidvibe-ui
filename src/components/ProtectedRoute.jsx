@@ -2,7 +2,7 @@
 import { useAuthStore } from '../store/authStore'
 
 export default function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, isLoading } = useAuthStore()
+  const { user, isLoading, isForbidden } = useAuthStore()
 
   // Show loading while auth store is loading
   if (isLoading) {
@@ -19,6 +19,11 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
   // If no user, redirect to login
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  // If user is banned or we got 403 forbidden, redirect to banned page
+  if (user.isBanned || isForbidden) {
+    return <Navigate to="/banned" replace />
   }
 
   // Check admin permission if required
