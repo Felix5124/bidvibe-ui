@@ -43,7 +43,6 @@ import {
   pauseSession,
   resumeSession,
   stopSession,
-  resetAuctionTimer,
   removeAuctionBid,
 } from '../../api/adminSessions'
 import { getListingMessagesForAdmin } from '../../api/adminMarket'
@@ -52,19 +51,7 @@ import PageHeaderFrame from '../../components/PageHeaderFrame'
 import { formatRarity } from '../../utils/rarity'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
-const MIN_AUCTION_MINUTES = 10
-
-const toDatetimeLocalValue = (date) => {
-  const d = new Date(date)
-  const offsetMs = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16)
-}
-
-const getDefaultAuctionEndTime = (sessionStartTime) => {
-  const startMs = new Date(sessionStartTime).getTime()
-  if (!Number.isFinite(startMs)) return ''
-  return toDatetimeLocalValue(startMs + MIN_AUCTION_MINUTES * 60 * 1000)
-}
+const ENGLISH_AUCTION_MINUTES = 2
 
 const toOptionalNumber = (value) => {
   if (value == null || String(value).trim() === '') return null
@@ -136,13 +123,11 @@ export default function AdminDashboard() {
   const [isLoadingApprovedItems, setIsLoadingApprovedItems] = useState(false)
   const [approvedItemsKeyword, setApprovedItemsKeyword] = useState('')
   const [auctionBidsByAuction, setAuctionBidsByAuction] = useState({})
-  const [timerMinutesByAuction, setTimerMinutesByAuction] = useState({})
   const [addAuctionForm, setAddAuctionForm] = useState({
     itemId: '',
     startPrice: '',
     stepPrice: '',
     minPrice: '',
-    endTime: '',
   })
 
   const [listingIdForMessages, setListingIdForMessages] = useState('')
@@ -391,7 +376,6 @@ export default function AdminDashboard() {
         startPrice: '',
         stepPrice: '',
         minPrice: '',
-        endTime: getDefaultAuctionEndTime(sessionDetail?.startTime),
       })
     } catch (error) {
       console.error('[AdminDashboard] Failed to load session management data', error)
@@ -407,14 +391,12 @@ export default function AdminDashboard() {
     setSelectedSessionDetail(null)
     setSelectedSessionAuctions([])
     setAuctionBidsByAuction({})
-    setTimerMinutesByAuction({})
     setApprovedItemsKeyword('')
     setAddAuctionForm({
       itemId: '',
       startPrice: '',
       stepPrice: '',
       minPrice: '',
-      endTime: '',
     })
   }
 
@@ -469,35 +451,6 @@ export default function AdminDashboard() {
     if (stepPrice != null) payload.stepPrice = stepPrice
     if (minPrice != null) payload.minPrice = minPrice
 
-    if (addAuctionForm.endTime) {
-      const endTimeMs = new Date(addAuctionForm.endTime).getTime()
-      if (!Number.isFinite(endTimeMs)) {
-        toast.error('Thời gian kết thúc không hợp lệ.')
-        return
-      }
-      if (endTimeMs <= Date.now()) {
-        toast.error('Thời gian kết thúc phải ở tương lai.')
-        return
-      }
-
-      const sessionStartMs = new Date(selectedSessionDetail?.startTime).getTime()
-      if (Number.isFinite(sessionStartMs)) {
-        const minEndMs = sessionStartMs + MIN_AUCTION_MINUTES * 60 * 1000
-        if (endTimeMs < minEndMs) {
-          toast.error(`Giờ kết thúc tối thiểu phải là giờ bắt đầu + ${MIN_AUCTION_MINUTES} phút.`)
-          return
-        }
-      }
-      payload.endTime = new Date(endTimeMs).toISOString()
-    } else {
-      const fallbackEndTime = getDefaultAuctionEndTime(selectedSessionDetail?.startTime)
-      if (!fallbackEndTime) {
-        toast.error('Không xác định được thời gian bắt đầu phiên để đặt giờ kết thúc mặc định.')
-        return
-      }
-      payload.endTime = new Date(fallbackEndTime).toISOString()
-    }
-
     setIsProcessingAction(true)
     try {
       await addItemToSession(selectedSessionId, payload)
@@ -509,7 +462,6 @@ export default function AdminDashboard() {
         startPrice: '',
         stepPrice: '',
         minPrice: '',
-        endTime: '',
       }))
     } catch (error) {
       const statusCode = error?.response?.status
@@ -1083,37 +1035,6 @@ export default function AdminDashboard() {
                           <button onClick={() => handleLoadAuctionBids(auction.id)} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>
                             Lịch sử giá
                           </button>
-                          <button onClick={() => {
-                            runAdminAction(() => resetAuctionTimer(auction.id, MIN_AUCTION_MINUTES), { reloadTab: false, reloadOverview: false, successMessage: `Đã cộng thêm ${MIN_AUCTION_MINUTES} phút.` })
-                          }} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>
-                            + Thời gian
-                          </button>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={MIN_AUCTION_MINUTES}
-                              value={timerMinutesByAuction[auction.id] || MIN_AUCTION_MINUTES}
-                              onChange={(e) => setTimerMinutesByAuction((prev) => ({ ...prev, [auction.id]: e.target.value }))}
-                              className="w-16 px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                            />
-                            <button
-                              onClick={() => {
-                                const minutes = Number(timerMinutesByAuction[auction.id] || MIN_AUCTION_MINUTES)
-                                if (!Number.isFinite(minutes) || minutes < MIN_AUCTION_MINUTES) {
-                                  toast.warning(`Thời gian tối thiểu là ${MIN_AUCTION_MINUTES} phút.`)
-                                  return
-                                }
-                                runAdminAction(
-                                  () => resetAuctionTimer(auction.id, minutes),
-                                  { reloadTab: false, reloadOverview: false, successMessage: `Đã cộng thêm ${minutes} phút.` }
-                                )
-                              }}
-                              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={isProcessingAction}
-                            >
-                              Đặt phút
-                            </button>
-                          </div>
                           <button
                             onClick={async () => {
                               setIsProcessingAction(true)
@@ -1199,7 +1120,6 @@ export default function AdminDashboard() {
                           onClick={() => setAddAuctionForm((prev) => ({
                             ...prev,
                             itemId: item.id,
-                            endTime: getDefaultAuctionEndTime(selectedSessionDetail?.startTime),
                           }))}
                           className={`w-full text-left border rounded-xl p-3 transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50 shadow-sm ring-1 ring-indigo-500' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'}`}
                         >
@@ -1243,17 +1163,9 @@ export default function AdminDashboard() {
                           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giá sàn (Dutch)</label>
                           <input type="number" min="0" value={addAuctionForm.minPrice} onChange={(e) => setAddAuctionForm(p => ({ ...p, minPrice: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giờ kết thúc</label>
-                          <input type="datetime-local" value={addAuctionForm.endTime} onChange={(e) => setAddAuctionForm(p => ({ ...p, endTime: e.target.value }))} className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm" />
-                          <button
-                            type="button"
-                            onClick={() => setAddAuctionForm((p) => ({ ...p, endTime: getDefaultAuctionEndTime(selectedSessionDetail?.startTime) }))}
-                            className="mt-1 text-[11px] text-indigo-600 hover:text-indigo-700"
-                          >
-                            Đặt mặc định: bắt đầu + {MIN_AUCTION_MINUTES} phút
-                          </button>
-                          <p className="text-[11px] text-slate-500 mt-1">Chỉ được tăng thêm, không được giảm dưới mốc bắt đầu + {MIN_AUCTION_MINUTES} phút.</p>
+                        <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2">
+                          <p className="text-[11px] font-bold uppercase text-indigo-700">Thời gian English</p>
+                          <p className="text-xs text-indigo-700 mt-1">Cố định {ENGLISH_AUCTION_MINUTES} phút cho mỗi vật phẩm, không chỉnh tay.</p>
                         </div>
                       </div>
                       

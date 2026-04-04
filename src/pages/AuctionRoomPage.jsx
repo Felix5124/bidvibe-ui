@@ -62,6 +62,7 @@ export default function AuctionRoomPage() {
   const [profileModalUser, setProfileModalUser] = useState(null)
   const [profileDetail, setProfileDetail] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [itemImageIndex, setItemImageIndex] = useState(0)
 
   // Load auction detail for the room header and status panel.
   const loadAuction = useCallback(async () => {
@@ -316,6 +317,26 @@ export default function AuctionRoomPage() {
   }
 
   const canBuyNow = useMemo(() => auction?.status === 'ACTIVE', [auction])
+  const itemImageUrls = useMemo(() => {
+    const urls = auction?.item?.imageUrls
+    if (!Array.isArray(urls)) return []
+    return urls.filter((url) => typeof url === 'string' && url.trim().length > 0)
+  }, [auction?.item?.imageUrls])
+  const itemImageUrl = itemImageUrls[itemImageIndex] || null
+
+  useEffect(() => {
+    setItemImageIndex(0)
+  }, [auction?.id])
+
+  const handlePrevItemImage = () => {
+    if (itemImageUrls.length < 2) return
+    setItemImageIndex((prev) => (prev - 1 + itemImageUrls.length) % itemImageUrls.length)
+  }
+
+  const handleNextItemImage = () => {
+    if (itemImageUrls.length < 2) return
+    setItemImageIndex((prev) => (prev + 1) % itemImageUrls.length)
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -342,8 +363,48 @@ export default function AuctionRoomPage() {
                   </span>
                 </div>
 
-                <h2 className="text-2xl font-semibold text-slate-900">{auction.item?.name}</h2>
-                <p className="text-slate-700 mt-2">{auction.item?.description || 'Không có mô tả.'}</p>
+                <div className="grid grid-cols-1 md:grid-cols-[180px_minmax(0,1fr)] gap-4 items-start">
+                  <div>
+                    <div className="w-full aspect-square rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+                      {itemImageUrl ? (
+                        <img
+                          src={itemImageUrl}
+                          alt={auction.item?.name || 'Vật phẩm đấu giá'}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">
+                          Không có ảnh
+                        </div>
+                      )}
+                    </div>
+                    {itemImageUrls.length > 1 && (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={handlePrevItemImage}
+                          className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-sm"
+                        >
+                          Truoc
+                        </button>
+                        <span className="text-xs text-slate-600">
+                          {itemImageIndex + 1}/{itemImageUrls.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleNextItemImage}
+                          className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-sm"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-semibold text-slate-900">{auction.item?.name}</h2>
+                    <p className="text-slate-700 mt-2">{auction.item?.description || 'Không có mô tả.'}</p>
+                  </div>
+                </div>
 
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
