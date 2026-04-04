@@ -173,7 +173,7 @@ export default function SessionDetailPage() {
                     >
                       <div>
                         <p className="font-medium text-slate-900">
-                          {auction.item?.name || "V?t ph?m chua d?t t�n"}
+                          {auction.item?.name || "Vật phẩm chưa đặt tên"}
                         </p>
                         <p className="text-sm text-slate-700 mt-1">
                           Trạng thái: {getStatusMeta(auction.status).label}

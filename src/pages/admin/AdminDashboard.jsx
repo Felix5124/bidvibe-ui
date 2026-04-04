@@ -47,6 +47,70 @@ import PageHeaderFrame from '../../components/PageHeaderFrame'
 import { formatRarity } from '../../utils/rarity'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
+const toFiniteNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const normalizeOverview = (payload) => {
+  if (!payload) return null
+  return {
+    totalUsers: toFiniteNumber(payload.totalUsers ?? payload.total_users, 0),
+    totalItems: toFiniteNumber(payload.totalItems ?? payload.totalItemsPending ?? payload.total_items ?? payload.total_items_pending, 0),
+    totalRevenue: toFiniteNumber(payload.totalRevenue ?? payload.totalRevenuePlatformFee ?? payload.total_revenue ?? payload.total_revenue_platform_fee, 0),
+    pendingDeposits: toFiniteNumber(payload.pendingDeposits ?? payload.pending_deposits, 0),
+    pendingWithdrawals: toFiniteNumber(payload.pendingWithdrawals ?? payload.pending_withdrawals, 0),
+  }
+}
+
+const normalizeAuctionStats = (payload) => {
+  if (!payload) return null
+  return {
+    activeAuctions: toFiniteNumber(payload.activeAuctions ?? payload.active_auctions, 0),
+    totalBids: toFiniteNumber(payload.totalBids ?? payload.total_bids, 0),
+    totalVolume: toFiniteNumber(payload.totalVolume ?? payload.total_volume, 0),
+  }
+}
+
+const normalizeMarketStats = (payload) => {
+  if (!payload) return null
+  return {
+    activeListings: toFiniteNumber(payload.activeListings ?? payload.active_listings, 0),
+    soldListings: toFiniteNumber(payload.soldListings ?? payload.totalSold ?? payload.total_sold, 0),
+    totalVolume: toFiniteNumber(payload.totalVolume ?? payload.total_volume, 0),
+  }
+}
+
+const normalizeRevenue = (payload) => {
+  if (!payload) return { totalRevenue: 0, series: [] }
+
+  const series = Array.isArray(payload) ? payload : []
+  const totalRevenue = series.reduce((sum, item) => sum + toFiniteNumber(item?.revenue, 0), 0)
+
+  return {
+    totalRevenue,
+    series,
+  }
+}
+
+const readPaginated = (payload) => {
+  if (!payload) return { content: [], meta: null }
+
+  const content = Array.isArray(payload.content) ? payload.content : []
+  const rawMeta = payload.meta || payload
+  const page = Number(rawMeta?.page)
+  const totalPages = Number(rawMeta?.totalPages)
+  const totalElements = Number(rawMeta?.totalElements)
+
+  return {
+    content,
+    meta: {
+      page: Number.isFinite(page) ? page : 0,
+      totalPages: Number.isFinite(totalPages) ? totalPages : 0,
+      totalElements: Number.isFinite(totalElements) ? totalElements : 0,
+    },
+  }
+}
 const ENGLISH_AUCTION_MINUTES = 2
 
 const toOptionalNumber = (value) => {
@@ -136,7 +200,7 @@ export default function AdminDashboard() {
 
     try {
       const response = await getOverview()
-      setOverview(readApiData(response))
+      setOverview(normalizeOverview(readApiData(response)))
     } catch (error) {
       console.error('[AdminDashboard] Failed to load admin overview', error)
       setOverviewError(error?.response?.data?.message || 'Không tải được so lieu tong quan.')
@@ -154,9 +218,9 @@ export default function AdminDashboard() {
         getMarketStats(),
       ])
 
-      setRevenue(readApiData(revenueRes))
-      setAuctionStats(readApiData(auctionRes))
-      setMarketStats(readApiData(marketRes))
+      setRevenue(normalizeRevenue(readApiData(revenueRes)))
+      setAuctionStats(normalizeAuctionStats(readApiData(auctionRes)))
+      setMarketStats(normalizeMarketStats(readApiData(marketRes)))
     } catch (error) {
       console.error('[AdminDashboard] Failed to load deep analytics', error)
       setAdminError(error?.response?.data?.message || 'Không tải được analytics chi tiet.')
@@ -176,15 +240,17 @@ export default function AdminDashboard() {
   const loadUsers = async (targetPage = 0) => {
     const response = await listUsers({}, targetPage, 15)
     const payload = readApiData(response)
-    setUsers(payload?.content || [])
-    setUsersMeta(payload?.meta || null)
+    const paged = readPaginated(payload)
+    setUsers(paged.content)
+    setUsersMeta(paged.meta)
   }
 
   const loadItems = async (targetPage = 0) => {
     const response = await listItems({ status: 'PENDING' }, targetPage, 15)
     const payload = readApiData(response)
-    setItems(payload?.content || [])
-    setItemsMeta(payload?.meta || null)
+    const paged = readPaginated(payload)
+    setItems(paged.content)
+    setItemsMeta(paged.meta)
   }
 
   const loadTransactions = useCallback(async (targetPage = 0) => {
@@ -197,8 +263,9 @@ export default function AdminDashboard() {
 
     const pagedRes = await listTransactions(filters, targetPage, 15)
     const payload = readApiData(pagedRes)
-    setTransactions(payload?.content || [])
-    setTxMeta(payload?.meta || null)
+    const paged = readPaginated(payload)
+    setTransactions(paged.content)
+    setTxMeta(paged.meta)
   }, [txViewMode])
 
   const loadSessions = async (targetPage = 0, statusFilter = '', typeFilter = '') => {
@@ -208,8 +275,9 @@ export default function AdminDashboard() {
     
     const response = await listSessions(filters, targetPage, 10)
     const payload = readApiData(response)
-    setSessions(payload?.content || [])
-    setSessionsMeta(payload?.meta || null)
+    const paged = readPaginated(payload)
+    setSessions(paged.content)
+    setSessionsMeta(paged.meta)
   }
 
   const loadSessionCounts = async () => {
@@ -221,7 +289,7 @@ export default function AdminDashboard() {
         try {
           const response = await listSessions({ status }, 0, 1)
           const payload = readApiData(response)
-          counts[status] = payload?.meta?.totalElements || 0
+          counts[status] = readPaginated(payload).meta.totalElements
         } catch {
           counts[status] = 0
         }

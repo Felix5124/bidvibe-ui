@@ -26,7 +26,15 @@ export default function MarketPage() {
         const response = await searchListings(targetFilters, targetPage, size);
         const payload = readApiData(response);
         setListings(payload?.content || []);
-        setMeta(payload?.meta || null);
+        setMeta(
+          payload
+            ? {
+                page: payload.page ?? 0,
+                totalPages: payload.totalPages ?? 0,
+                totalElements: payload.totalElements ?? 0,
+              }
+            : null,
+        );
       } catch (err) {
         console.error("[MarketPage] Failed to load listings", err);
         setError(

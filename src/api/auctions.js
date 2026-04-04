@@ -1,5 +1,5 @@
 // Auction & Bidding APIs
-// GET  /api/auctions/session/{sessionId} - Get all auctions in a session
+// GET  /api/sessions/{sessionId}/auctions - Get all auctions in a session
 // GET  /api/auctions/{id} - Get auction details
 // GET  /api/auctions/{id}/bids - Get bid history (paginated)
 // POST /api/auctions/{id}/bids - Place a regular bid
@@ -12,6 +12,21 @@
 
 import api from './baseApi'
 
+const normalizeSessionAuction = (auction = {}) => ({
+  ...auction,
+  currentPrice: Number(auction.currentPrice ?? auction.current_price ?? 0),
+  startPrice: Number(auction.startPrice ?? auction.start_price ?? 0),
+  endTime: auction.endTime ?? auction.end_time,
+  item: auction.item ?? {
+    id: auction.item_id,
+    name: auction.item_name,
+    description: auction.item_description,
+    imageUrls: auction.item_images ?? [],
+    rarity: auction.item_rarity,
+    tags: auction.item_tags ?? [],
+  },
+})
+
 /**
  * Get all auctions in a session
  * @param {string} sessionId - Session ID
@@ -19,8 +34,19 @@ import api from './baseApi'
  * @param {number} size - Page size (default: 50)
  */
 export const getAuctionsBySession = (sessionId, page = 0, size = 50) => {
-  return api.get(`/auctions/session/${sessionId}`, {
+  return api.get(`/sessions/${sessionId}/auctions`, {
     params: { page, size },
+  }).then((response) => {
+    const payload = response?.data?.data
+    if (Array.isArray(payload)) {
+      response.data.data = payload.map(normalizeSessionAuction)
+    } else if (payload && Array.isArray(payload.content)) {
+      response.data.data = {
+        ...payload,
+        content: payload.content.map(normalizeSessionAuction),
+      }
+    }
+    return response
   })
 }
 

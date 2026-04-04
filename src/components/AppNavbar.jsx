@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
@@ -10,8 +10,27 @@ const navLinkClass = ({ isActive }) =>
 export default function AppNavbar() {
   const { user, logout } = useAuthStore();
   const { unreadCount, setUnreadCount } = useNotificationStore();
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const displayName =
     user?.nickname || user?.email?.split("@")?.[0] || "Người dùng";
+
+  const avatarUrl = useMemo(() => {
+    if (!user) return null;
+    return (
+      user.avatarUrl ||
+      user.googleAvatar ||
+      user.avatar_url ||
+      user.user_metadata?.avatar_url ||
+      null
+    );
+  }, [user]);
+
+  const showAvatarImage = Boolean(avatarUrl && !avatarLoadFailed);
+
+  useEffect(() => {
+    // Reset image fallback state when user or avatar source changes.
+    setAvatarLoadFailed(false);
+  }, [user?.id, avatarUrl]);
 
   // Fetch unread count on mount
   useEffect(() => {
@@ -94,11 +113,13 @@ export default function AppNavbar() {
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
                 title="Xem hồ sơ"
               >
-                {user?.avatarUrl ? (
+                {showAvatarImage ? (
                   <img
-                    src={user.avatarUrl}
+                    src={avatarUrl}
                     alt={displayName}
                     className="h-8 w-8 rounded-full object-cover border border-slate-200"
+                    onError={() => setAvatarLoadFailed(true)}
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="h-8 w-8 rounded-full bg-blue-600 text-white text-sm font-semibold flex items-center justify-center">
