@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { useNotificationSubscription } from './hooks/useNotificationSubscription'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
+import BannedPage from './pages/BannedPage'
 import HomePage from './pages/HomePage'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import InventoryPage from './pages/InventoryPage'
@@ -40,6 +41,23 @@ function App() {
   useEffect(() => {
     const initAuth = async () => {
       const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
+      
+      // Check if user is already marked as banned in sessionStorage
+      const userStr = sessionStorage.getItem('user')
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr)
+          if (user.isBanned) {
+            // User is already banned, skip API call
+            console.debug('User is banned, skipping initial auth')
+            setHasTriedInitialAuth(true)
+            return
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+      }
+      
       if (token && !hasTriedInitialAuth) {
         try {
           await fetchUserProfile()
@@ -74,9 +92,11 @@ function App() {
           <ToastContainer />
           {user && <NotificationListener />}
           <Routes>
+          <Route path="/banned" element={<BannedPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          
           <Route element={<AppLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           <Route
             path="/"

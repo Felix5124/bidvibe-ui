@@ -13,9 +13,24 @@ const api = axios.create({
   },
 })
 
-// Request interceptor - add auth token
+// Request interceptor - add auth token and check if user is banned
 api.interceptors.request.use(
   (config) => {
+    // Check if user is banned (isForbidden flag in sessionStorage)
+    const userStr = sessionStorage.getItem('user')
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (user.isBanned) {
+          // User is banned, reject the request early to avoid unnecessary API calls
+          console.warn('Blocking API request for banned user:', config.url)
+          return Promise.reject(new Error('User is banned'))
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+    }
+    
     // Prefer Supabase JWT token, fallback to existing authToken.
     const token = sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken')
     if (token) {

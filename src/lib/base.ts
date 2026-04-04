@@ -81,6 +81,21 @@ const getJwt = (): string | null => {
 
 // Gắn Authorization header tự động cho mọi request
 apiClient.interceptors.request.use((config) => {
+  // Check if user is banned (isForbidden flag in sessionStorage)
+  const userStr = sessionStorage.getItem('user')
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      if (user.isBanned) {
+        // User is banned, reject the request early to avoid unnecessary API calls
+        console.warn('Blocking API request for banned user:', config.url)
+        return Promise.reject(new Error('User is banned'))
+      }
+      } catch {
+        // Ignore JSON parse errors
+      }
+  }
+  
   const token = getJwt()
   if (token) {
     config.headers = config.headers || {}

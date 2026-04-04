@@ -8,6 +8,7 @@ interface AuthStore {
   user: User | null
   isLoading: boolean
   error: string | null
+  isForbidden: boolean // Track if user got 403 (likely banned)
   loginWithGoogle: () => Promise<void>
   logout: () => Promise<void>
   fetchUserProfile: () => Promise<void>
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   user: initialUser,
   isLoading: false,
   error: null,
+  isForbidden: false,
 
   // Start OAuth login flow via Google and redirect to callback.
   loginWithGoogle: async () => {
@@ -52,7 +54,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       sessionStorage.removeItem('sb_jwt')
       sessionStorage.removeItem('authToken')
       sessionStorage.removeItem('user')
-      set({ user: null })
+      set({ user: null, isForbidden: false })
     } catch (err: any) {
       logError('AuthStore', 'Logout failed', err)
       set({ error: err.message || 'Logout failed' })
@@ -93,7 +95,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       
       // Gộp googleAvatar vào user state để UI sử dụng làm fallback
       const userWithAvatar = { ...userData, googleAvatar }
-      set({ user: userWithAvatar })
+      set({ user: userWithAvatar, isForbidden: false })
       // Store in sessionStorage for persistence across page refresh
       sessionStorage.setItem('user', JSON.stringify(userWithAvatar))
     } catch (err: any) {
@@ -117,7 +119,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             const response = await apiClient.get('/api/users/me')
             const userData = response.data?.data || response.data
             const googleAvatar = refreshResult.data.session.user?.user_metadata?.avatar_url || null
-            set({ user: { ...userData, googleAvatar } })
+            set({ user: { ...userData, googleAvatar }, isForbidden: false })
             return
           } else {
             // Refresh failed, clear session
@@ -127,6 +129,41 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           // Refresh also failed, clear session
           console.error('Refresh also failed:', refreshError)
           set({ user: null })
+        }
+      } else if (err.response?.status === 403) {
+        // 403 Forbidden - user is banned or doesn't have permission
+        // Set forbidden flag and mark user as banned
+        const existingUser = get().user
+        if (existingUser) {
+          // Update existing user with banned status
+          set({ user: { ...existingUser, isBanned: true }, isForbidden: true })
+          sessionStorage.setItem('user', JSON.stringify({ ...existingUser, isBanned: true }))
+          console.warn('User received 403, marking existing user as banned')
+        } else {
+          // Create a minimal banned user object so ProtectedRoute can redirect to /banned
+          // We need at least an id to identify the user
+          try {
+            const session = (await supabase.auth.getSession()).data.session
+            if (session?.user) {
+              const bannedUser: User = {
+                id: session.user.id,
+                email: session.user.email || '',
+                name: session.user.user_metadata?.name || session.user.email || '',
+                isBanned: true
+              }
+              set({ user: bannedUser, isForbidden: true })
+              sessionStorage.setItem('user', JSON.stringify(bannedUser))
+              console.warn('User received 403, creating banned user object')
+            } else {
+              // No session either, just set forbidden flag
+              set({ isForbidden: true })
+              console.warn('User is forbidden (likely banned) but no session, setting forbidden flag')
+            }
+          } catch (sessionError) {
+            // Failed to get session, just set forbidden flag
+            console.error('Failed to get session after 403:', sessionError)
+            set({ isForbidden: true })
+          }
         }
       } else {
         // Other errors (500, 404, etc.)
