@@ -5,9 +5,7 @@
 // POST /api/admin/transactions/{id}/reject-deposit - Reject deposit
 // POST /api/admin/transactions/{id}/approve-withdraw - Approve withdrawal
 // POST /api/admin/transactions/{id}/reject-withdraw - Reject withdrawal
-// POST /api/admin/transactions/approve - Legacy bulk approve/reject by body
-// POST /api/admin/transactions/{id}/approve - Approve transaction
-// POST /api/admin/transactions/{id}/reject - Reject transaction
+// Admin chỉ dùng các endpoint duyệt/từ chối nạp-rút chuyên biệt.
 
 import api from './baseApi'
 
@@ -67,36 +65,6 @@ export const rejectWithdraw = (transactionId) => {
   return api.post(`/admin/transactions/${transactionId}/reject-withdraw`)
 }
 
-/**
- * Legacy bulk transaction processing endpoint
- * @param {string} transactionId - Transaction ID
- * @param {string} newStatus - COMPLETED | CANCELLED
- * @param {string} adminNote - Optional admin note
- */
-export const processTransaction = (transactionId, newStatus, adminNote) => {
-  return api.post('/admin/transactions/approve', {
-    transactionId,
-    newStatus,
-    adminNote,
-  })
-}
-
-/**
- * Generic approve transaction
- * @param {string} transactionId - Transaction ID
- */
-export const approveTransaction = (transactionId) => {
-  return api.post(`/admin/transactions/${transactionId}/approve`)
-}
-
-/**
- * Generic reject transaction
- * @param {string} transactionId - Transaction ID
- */
-export const rejectTransaction = (transactionId) => {
-  return api.post(`/admin/transactions/${transactionId}/reject`)
-}
-
 export default {
   listTransactions,
   getPendingTransactions,
@@ -104,7 +72,4 @@ export default {
   rejectDeposit,
   approveWithdraw,
   rejectWithdraw,
-  processTransaction,
-  approveTransaction,
-  rejectTransaction,
 }

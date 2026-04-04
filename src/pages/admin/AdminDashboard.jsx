@@ -23,14 +23,10 @@ import {
 } from '../../api/adminItems'
 import {
   listTransactions,
-  getPendingTransactions,
   approveDeposit,
   rejectDeposit,
   approveWithdraw,
   rejectWithdraw,
-  processTransaction,
-  approveTransaction,
-  rejectTransaction,
 } from '../../api/adminTransactions'
 import {
   listSessions,
@@ -93,7 +89,7 @@ export default function AdminDashboard() {
   const [transactions, setTransactions] = useState([])
   const [txMeta, setTxMeta] = useState(null)
   const [txPage, setTxPage] = useState(0)
-  const [pendingTransactions, setPendingTransactions] = useState([])
+  const [txViewMode, setTxViewMode] = useState('PENDING')
   const [sessions, setSessions] = useState([])
   const [sessionsMeta, setSessionsMeta] = useState(null)
   const [sessionsPage, setSessionsPage] = useState(0)
@@ -191,17 +187,19 @@ export default function AdminDashboard() {
     setItemsMeta(payload?.meta || null)
   }
 
-  const loadTransactions = async (targetPage = 0) => {
-    const [pagedRes, pendingRes] = await Promise.all([
-      listTransactions({ status: 'PENDING' }, targetPage, 15),
-      getPendingTransactions(),
-    ])
+  const loadTransactions = useCallback(async (targetPage = 0) => {
+    const filters = {}
+    if (txViewMode === 'PENDING') {
+      filters.status = 'PENDING'
+    } else {
+      filters.status = 'COMPLETED'
+    }
 
+    const pagedRes = await listTransactions(filters, targetPage, 15)
     const payload = readApiData(pagedRes)
     setTransactions(payload?.content || [])
     setTxMeta(payload?.meta || null)
-    setPendingTransactions(readApiData(pendingRes) || [])
-  }
+  }, [txViewMode])
 
   const loadSessions = async (targetPage = 0, statusFilter = '', typeFilter = '') => {
     const filters = {}
@@ -266,7 +264,7 @@ export default function AdminDashboard() {
     } finally {
       setIsLoadingTabData(false)
     }
-  }, [tab, sessionStatusFilter, sessionTypeFilter])
+  }, [tab, sessionStatusFilter, sessionTypeFilter, loadTransactions])
 
   useEffect(() => {
     setUsersPage(0)
@@ -287,7 +285,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (tab === 'transactions') loadTabData(txPage)
-  }, [tab, txPage, loadTabData])
+  }, [tab, txPage, txViewMode, loadTabData])
 
   useEffect(() => {
     if (tab === 'sessions') loadTabData(sessionsPage)
@@ -296,6 +294,20 @@ export default function AdminDashboard() {
   const formatVnd = (value) => {
     if (value == null) return '-'
     return new Intl.NumberFormat('vi-VN').format(Number(value)) + ' VND'
+  }
+
+  const formatTransactionType = (type) => {
+    if (type === 'DEPOSIT') return 'Nạp tiền'
+    if (type === 'WITHDRAW') return 'Rút tiền'
+    return type || '-'
+  }
+
+  const formatTransactionStatus = (status) => {
+    if (status === 'PENDING') return 'Chờ'
+    if (status === 'COMPLETED') return 'Thành công'
+    if (status === 'CANCELLED') return 'Từ chối'
+    if (status === 'FAILED') return 'Thất bại'
+    return status || '-'
   }
 
   const runAdminAction = async (fn, options = {}) => {
@@ -746,39 +758,53 @@ export default function AdminDashboard() {
 
   const renderTransactionsTab = () => (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Duyệt giao dịch chờ xử lý</h2>
+      <h2 className="text-xl font-semibold mb-4">Quản lý giao dịch ví</h2>
 
-      <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-        Từ API chờ duyệt: {pendingTransactions.length} giao dịch
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => { setTxViewMode('PENDING'); setTxPage(0) }}
+          className={`px-3 py-1.5 text-sm rounded border ${txViewMode === 'PENDING' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+        >
+          Chưa xử lý
+        </button>
+        <button
+          type="button"
+          onClick={() => { setTxViewMode('HISTORY'); setTxPage(0) }}
+          className={`px-3 py-1.5 text-sm rounded border ${txViewMode === 'HISTORY' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+        >
+          Lịch sử
+        </button>
       </div>
 
       <div className="space-y-3">
         {transactions.map((tx) => (
           <div key={tx.id} className="border border-gray-200 rounded p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <p className="font-medium text-gray-900">{tx.type} - {formatVnd(tx.amount)}</p>
-              <p className="text-sm text-gray-600">{tx.status}</p>
+              <p className="font-medium text-gray-900">{formatTransactionType(tx.type)} - {formatVnd(tx.amount)}</p>
+              <p className="text-sm text-gray-600">Trạng thái: {formatTransactionStatus(tx.status)}</p>
+              <p className="text-sm text-gray-600">Người giao dịch: {tx.userNickname || 'Không xác định'}</p>
+              <p className="text-sm text-gray-600">Mã hóa đơn: {tx.id}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {tx.type === 'DEPOSIT' ? (
+              {txViewMode === 'PENDING' && tx.status === 'PENDING' && tx.type === 'DEPOSIT' ? (
                 <>
                   <button onClick={() => runAdminAction(() => approveDeposit(tx.id), { successMessage: 'Đã duyệt yêu cầu nạp tiền.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt nạp</button>
                   <button onClick={() => runAdminAction(() => rejectDeposit(tx.id), { successMessage: 'Đã từ chối yêu cầu nạp tiền.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối nạp</button>
                 </>
-              ) : (
+              ) : null}
+              {txViewMode === 'PENDING' && tx.status === 'PENDING' && tx.type === 'WITHDRAW' ? (
                 <>
                   <button onClick={() => runAdminAction(() => approveWithdraw(tx.id), { successMessage: 'Đã duyệt yêu cầu rút tiền.' })} className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt rút</button>
                   <button onClick={() => runAdminAction(() => rejectWithdraw(tx.id), { successMessage: 'Đã từ chối yêu cầu rút tiền.' })} className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối rút</button>
                 </>
-              )}
-              <button onClick={() => runAdminAction(() => approveTransaction(tx.id), { successMessage: 'Đã duyệt giao dịch.' })} className="px-2 py-1 text-sm rounded bg-green-800 text-white hover:bg-green-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt tự động</button>
-              <button onClick={() => runAdminAction(() => rejectTransaction(tx.id), { successMessage: 'Đã từ chối giao dịch.' })} className="px-2 py-1 text-sm rounded bg-red-800 text-white hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối tự động</button>
-              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'COMPLETED'), { successMessage: 'Đã xử lý giao dịch.' })} className="px-2 py-1 text-sm rounded bg-teal-700 text-white hover:bg-teal-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Duyệt kiểu cũ</button>
-              <button onClick={() => runAdminAction(() => processTransaction(tx.id, 'CANCELLED'), { successMessage: 'Đã hủy giao dịch.' })} className="px-2 py-1 text-sm rounded bg-rose-700 text-white hover:bg-rose-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessingAction}>Từ chối kiểu cũ</button>
+              ) : null}
             </div>
           </div>
         ))}
-        {transactions.length === 0 && <p className="text-gray-600">Không có giao dịch pending.</p>}
+        {transactions.length === 0 && (
+          <p className="text-gray-600">{txViewMode === 'PENDING' ? 'Không có giao dịch chưa xử lý.' : 'Chưa có giao dịch trong lịch sử.'}</p>
+        )}
       </div>
 
       {txMeta && txMeta.totalPages > 1 && (

@@ -5,6 +5,8 @@ import { getBalance, getTransactionHistory, requestDeposit, requestWithdraw } fr
 import PageHeaderFrame from '../components/PageHeaderFrame'
 
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
+const DEPOSIT_PRESETS = [50000, 100000, 200000, 500000]
+const QR_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='20' y='20' width='240' height='240' fill='%23ffffff' stroke='%2394a3b8' stroke-width='2'/><text x='50%' y='48%' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23334155' font-family='Arial'>QR PLACEHOLDER</text><text x='50%' y='58%' dominant-baseline='middle' text-anchor='middle' font-size='12' fill='%2364748b' font-family='Arial'>Them anh QR sau</text></svg>"
 
 export default function WalletPage() {
   const toast = useToast()
@@ -14,8 +16,11 @@ export default function WalletPage() {
   const [txPage, setTxPage] = useState(0)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeAction, setActiveAction] = useState('deposit')
 
-  const [depositForm, setDepositForm] = useState({ amount: '', note: '' })
+  const [selectedDepositAmount, setSelectedDepositAmount] = useState(DEPOSIT_PRESETS[0])
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false)
+  const [depositInvoice, setDepositInvoice] = useState(null)
   const [withdrawForm, setWithdrawForm] = useState({ amount: '', bankAccountName: '', bankAccountNumber: '', bankName: '' })
 
   // Load wallet balance summary.
@@ -55,17 +60,82 @@ export default function WalletPage() {
     return new Intl.NumberFormat('vi-VN').format(Number(value)) + ' VND'
   }
 
-  // Submit deposit request.
-  const submitDeposit = async (event) => {
-    event.preventDefault()
+  const formatTransactionType = (type) => {
+    if (type === 'DEPOSIT') return 'Nạp tiền'
+    if (type === 'WITHDRAW') return 'Rút tiền'
+    if (type === 'BID_LOCK') return 'Khóa tiền đấu giá'
+    if (type === 'BID_UNLOCK') return 'Mở khóa tiền đấu giá'
+    if (type === 'FINAL_PAYMENT') return 'Thanh toán cuối'
+    if (type === 'PLATFORM_FEE') return 'Phí nền tảng'
+    return type || '-'
+  }
+
+  const formatTransactionStatus = (status) => {
+    if (status === 'PENDING') return 'Chờ xử lý'
+    if (status === 'COMPLETED') return 'Thành công'
+    if (status === 'CANCELLED') return 'Đã hủy'
+    if (status === 'FAILED') return 'Thất bại'
+    return status || '-'
+  }
+
+  const getAmountPresentation = (tx) => {
+    const type = tx?.type
+    const status = tx?.status
+    let direction = 'neutral'
+
+    if (type === 'DEPOSIT') {
+      direction = status === 'COMPLETED' ? 'in' : 'neutral'
+    } else if (type === 'WITHDRAW') {
+      direction = status === 'CANCELLED' ? 'in' : 'out'
+    } else if (type === 'BID_UNLOCK') {
+      direction = 'in'
+    } else if (type === 'BID_LOCK' || type === 'PLATFORM_FEE') {
+      direction = 'out'
+    } else if (type === 'FINAL_PAYMENT') {
+      // FINAL_PAYMENT có thể là nhận tiền (seller) hoặc chi tiền (buyer).
+      // Nếu chưa có metadata phân biệt, mặc định hiển thị là chi ra.
+      direction = 'out'
+    }
+
+    const sign = direction === 'in' ? '+' : direction === 'out' ? '-' : ''
+    const className = direction === 'in'
+      ? 'text-emerald-700'
+      : direction === 'out'
+        ? 'text-red-600'
+        : 'text-slate-700'
+
+    return {
+      label: `${sign}${formatVnd(tx?.amount)}`,
+      className,
+    }
+  }
+
+  // Create a deposit invoice and submit pending deposit request for admin approval.
+  const createDepositInvoice = async () => {
+    if (isCreatingInvoice) return
+    const amount = Number(selectedDepositAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.warning('Vui lòng chọn mệnh giá nạp hợp lệ.')
+      return
+    }
+
+    setIsCreatingInvoice(true)
     try {
-      await requestDeposit({ amount: Number(depositForm.amount), note: depositForm.note })
-      toast.success('Đã gửi yêu cầu nạp tiền. Vui lòng chờ duyệt.')
-      setDepositForm({ amount: '', note: '' })
+      const response = await requestDeposit({ amount, note: `NAP-${Date.now()}` })
+      const tx = readApiData(response)
+      setDepositInvoice({
+        id: tx?.id || null,
+        amount,
+        createdAt: tx?.createdAt || new Date().toISOString(),
+        status: tx?.status || 'PENDING',
+      })
+      toast.success('Đã tạo hóa đơn nạp tiền. Yêu cầu đã gửi lên admin để duyệt.')
       await loadAll(txPage)
     } catch (err) {
-      console.error('[WalletPage] Failed to request deposit', err)
-      toast.error(err?.response?.data?.message || 'Gửi yêu cầu nạp tiền thất bại.')
+      console.error('[WalletPage] Failed to create deposit invoice', err)
+      toast.error(err?.response?.data?.message || 'Không thể tạo hóa đơn nạp tiền.')
+    } finally {
+      setIsCreatingInvoice(false)
     }
   }
 
@@ -118,39 +188,92 @@ export default function WalletPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <form onSubmit={submitDeposit} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
-                <h2 className="text-xl font-semibold">Nạp tiền</h2>
-                <input type="number" min="0" required value={depositForm.amount} onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tiền" />
-                <input value={depositForm.note} onChange={(e) => setDepositForm((prev) => ({ ...prev, note: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Ghi chu" />
-                <button className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700">Gui yeu cau nap</button>
-              </form>
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveAction('deposit')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeAction === 'deposit' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              >
+                Nạp tiền
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAction('withdraw')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeAction === 'withdraw' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              >
+                Rút tiền
+              </button>
+            </div>
 
-              <form onSubmit={submitWithdraw} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
-                <h2 className="text-xl font-semibold">Rút tiền</h2>
+            {activeAction === 'deposit' && (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 space-y-4">
+                <h2 className="text-xl font-semibold">Tạo hóa đơn nạp tiền</h2>
+                <p className="text-sm text-slate-600">Chọn mệnh giá nạp. Hệ thống sẽ tạo yêu cầu nạp tiền để admin duyệt.</p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {DEPOSIT_PRESETS.map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setSelectedDepositAmount(amount)}
+                      className={`px-4 py-3 rounded-lg border text-sm font-semibold transition ${selectedDepositAmount === amount ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}
+                    >
+                      {new Intl.NumberFormat('vi-VN').format(amount)} VND
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={createDepositInvoice}
+                  disabled={isCreatingInvoice}
+                  className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {isCreatingInvoice ? 'Đang tạo hóa đơn...' : 'Tạo hóa đơn nạp tiền'}
+                </button>
+
+                {depositInvoice && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-4">
+                    <img src={QR_PLACEHOLDER} alt="QR nạp tiền" className="w-full max-w-[280px] rounded-lg border border-slate-300 bg-white" />
+                    <div className="space-y-1 text-sm">
+                      <p className="font-semibold text-slate-900">Hóa đơn nạp tiền</p>
+                      <p className="text-slate-700">Mã hóa đơn: {depositInvoice.id || 'Đang tạo mã'}</p>
+                      <p className="text-slate-700">Số tiền: <span className="font-semibold text-emerald-700">{formatVnd(depositInvoice.amount)}</span></p>
+                      <p className="text-slate-700">Trạng thái: <span className="font-semibold">{depositInvoice.status}</span></p>
+                      <p className="text-slate-700">Thời gian tạo: {new Date(depositInvoice.createdAt).toLocaleString('vi-VN')}</p>
+                      <p className="text-xs text-slate-500 pt-2">Bạn có thể thay ảnh QR bằng ảnh thật sau. Yêu cầu nạp đã được gửi lên bảng điều khiển giao dịch admin.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeAction === 'withdraw' && (
+              <form onSubmit={submitWithdraw} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3 mb-6">
+                <h2 className="text-xl font-semibold">Tạo yêu cầu rút tiền</h2>
                 <input type="number" min="0" required value={withdrawForm.amount} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tiền" />
                 <input required value={withdrawForm.bankAccountName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Tên chủ tài khoản" />
                 <input required value={withdrawForm.bankAccountNumber} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankAccountNumber: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Số tài khoản" />
                 <input required value={withdrawForm.bankName} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, bankName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Tên ngân hàng" />
-                <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Gui yeu cau rut</button>
+                <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Gửi yêu cầu rút</button>
               </form>
-            </div>
+            )}
 
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Lịch sử giao dịch</h2>
               {transactions.length === 0 ? (
-                <p className="text-gray-600">Chưa có giao dịch nao.</p>
+                <p className="text-gray-600">Chưa có giao dịch nào.</p>
               ) : (
                 <div className="space-y-2">
                   {transactions.map((tx) => (
                     <div key={tx.id} className="border border-gray-200 rounded p-3 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-gray-900">{tx.type}</p>
+                        <p className="font-medium text-gray-900">{formatTransactionType(tx.type)}</p>
                         <p className="text-sm text-gray-600">{tx.description || '-'}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-emerald-700">{formatVnd(tx.amount)}</p>
-                        <p className="text-sm text-gray-600">{tx.status}</p>
+                        <p className={`font-semibold ${getAmountPresentation(tx).className}`}>{getAmountPresentation(tx).label}</p>
+                        <p className="text-sm text-gray-600">{formatTransactionStatus(tx.status)}</p>
                       </div>
                     </div>
                   ))}
