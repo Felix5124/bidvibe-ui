@@ -4,6 +4,7 @@ import {
   buyNow,
   cancelProxyBid,
   getAuction,
+  getAuctionsBySession,
   getAuctionBids,
   getLiveChatMessages,
   placeBid,
@@ -24,6 +25,7 @@ const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 const STATUS_META = {
   SCHEDULED: { label: 'Đã lên lịch', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+  WAITING: { label: 'Chờ đến lượt', className: 'bg-blue-100 text-blue-700 border-blue-200' },
   ACTIVE: { label: 'Đang diễn ra', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   PAUSED: { label: 'Tạm dừng', className: 'bg-amber-100 text-amber-700 border-amber-200' },
   COMPLETED: { label: 'Đã kết thúc', className: 'bg-zinc-100 text-zinc-700 border-zinc-200' },
@@ -42,12 +44,18 @@ const AUCTION_TYPE_LABEL = {
   SEALED: 'Đấu giá kín',
 }
 
+const BREAK_BETWEEN_ITEMS_SECONDS = 15
+
 export default function AuctionRoomPage() {
-  const { id } = useParams()
+  const { id, sessionId } = useParams()
+  const isSessionRoom = Boolean(sessionId)
+  const sessionRoomId = sessionId || null
   const { user } = useAuthStore()
   const toast = useToast()
 
   const [auction, setAuction] = useState(null)
+  const [sessionAuctions, setSessionAuctions] = useState([])
+  const [currentAuctionId, setCurrentAuctionId] = useState(isSessionRoom ? null : id)
   const [bids, setBids] = useState([])
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -63,40 +71,90 @@ export default function AuctionRoomPage() {
   const [profileDetail, setProfileDetail] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [itemImageIndex, setItemImageIndex] = useState(0)
+  const [nowMs, setNowMs] = useState(Date.now())
+  const effectiveAuctionId = isSessionRoom ? currentAuctionId : id
+
+  const parseSessionAuctions = useCallback((payload) => {
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.content)) return payload.content
+    return []
+  }, [])
+
+  const pickCurrentAuction = useCallback((list) => {
+    if (!Array.isArray(list) || list.length === 0) return null
+    const active = list.find((a) => a.status === 'ACTIVE')
+    if (active) return active
+    const waiting = list.find((a) => a.status === 'WAITING')
+    return waiting || null
+  }, [])
+
+  const loadSessionQueue = useCallback(async () => {
+    if (!isSessionRoom || !sessionRoomId) return null
+    const response = await getAuctionsBySession(sessionRoomId)
+    const payload = readApiData(response)
+    const list = parseSessionAuctions(payload)
+    setSessionAuctions(list)
+    const current = pickCurrentAuction(list)
+    setCurrentAuctionId(current?.id || null)
+    return current
+  }, [isSessionRoom, sessionRoomId, parseSessionAuctions, pickCurrentAuction])
 
   // Load auction detail for the room header and status panel.
-  const loadAuction = useCallback(async () => {
-    const response = await getAuction(id)
+  const loadAuction = useCallback(async (auctionId) => {
+    if (!auctionId) {
+      setAuction(null)
+      return
+    }
+    const response = await getAuction(auctionId)
     setAuction(readApiData(response))
-  }, [id])
+  }, [])
 
   // Load recent bid history to display latest bidding activity.
-  const loadBids = useCallback(async () => {
-    const response = await getAuctionBids(id, 0, 20)
+  const loadBids = useCallback(async (auctionId) => {
+    if (!auctionId) {
+      setBids([])
+      return
+    }
+    const response = await getAuctionBids(auctionId, 0, 20)
     const payload = readApiData(response)
     setBids(payload?.content || [])
-  }, [id])
+  }, [])
 
   // Load persisted live-chat history via REST API.
-  const loadMessages = useCallback(async () => {
-    const response = await getLiveChatMessages(id)
+  const loadMessages = useCallback(async (auctionId) => {
+    if (!auctionId) {
+      setMessages([])
+      return
+    }
+    const response = await getLiveChatMessages(auctionId)
     const payload = readApiData(response)
     // Handle paginated response (content array) or direct array
     const messagesArray = Array.isArray(payload) ? payload : (Array.isArray(payload?.content) ? payload.content : [])
     setMessages(messagesArray)
-  }, [id])
-
-  // Load the whole room state in parallel.
-  const loadAll = useCallback(async () => {
-    await Promise.all([loadAuction(), loadBids(), loadMessages()])
-  }, [loadAuction, loadBids, loadMessages])
+  }, [])
 
   useEffect(() => {
     const run = async () => {
       setLoading(true)
       setError(null)
       try {
-        await loadAll()
+        if (isSessionRoom) {
+          const current = await loadSessionQueue()
+          if (current?.id) {
+            await Promise.all([
+              loadAuction(current.id),
+              loadBids(current.id),
+              loadMessages(current.id),
+            ])
+          } else {
+            setAuction(null)
+            setBids([])
+            setMessages([])
+          }
+        } else if (id) {
+          setCurrentAuctionId(id)
+          await Promise.all([loadAuction(id), loadBids(id), loadMessages(id)])
+        }
       } catch (err) {
         console.error('[AuctionRoomPage] Failed to load room data', err)
         setError(err?.response?.data?.message || 'Không tải được phong dau gia.')
@@ -105,20 +163,45 @@ export default function AuctionRoomPage() {
       }
     }
 
-    if (id) {
+    if (isSessionRoom ? sessionRoomId : id) {
       run()
     }
-  }, [id, loadAll])
+  }, [isSessionRoom, sessionRoomId, id, loadAuction, loadBids, loadMessages, loadSessionQueue])
 
   useEffect(() => {
-    if (!id) return undefined
+    if (!isSessionRoom || !sessionRoomId) return undefined
+
+    const timer = setInterval(() => {
+      loadSessionQueue().catch(() => {})
+    }, 3000)
+
+    return () => clearInterval(timer)
+  }, [isSessionRoom, sessionRoomId, loadSessionQueue])
+
+  useEffect(() => {
+    if (!isSessionRoom) return undefined
+    const timer = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [isSessionRoom])
+
+  useEffect(() => {
+    if (!effectiveAuctionId) return
+    Promise.all([
+      loadAuction(effectiveAuctionId),
+      loadBids(effectiveAuctionId),
+      loadMessages(effectiveAuctionId),
+    ]).catch(() => {})
+  }, [effectiveAuctionId, loadAuction, loadBids, loadMessages])
+
+  useEffect(() => {
+    if (!effectiveAuctionId) return undefined
 
     const client = createStompClient({
       onConnect: () => {
         setWsStatus('connected')
 
         // Subscribe to auction updates - use payload directly for faster price updates
-        client.subscribe(`/topic/auction/${id}`, (msg) => {
+        client.subscribe(`/topic/auction/${effectiveAuctionId}`, (msg) => {
           try {
             const payload = JSON.parse(msg.body)
             console.log('[AuctionRoomPage] Received auction update:', payload)
@@ -136,17 +219,23 @@ export default function AuctionRoomPage() {
                 }
               })
               // Also reload bids to show latest bid history
-              loadBids().catch(() => {})
+              loadBids(effectiveAuctionId).catch(() => {})
+              if (isSessionRoom && payload.status === 'ENDED') {
+                loadSessionQueue().catch(() => {})
+              }
             }
           } catch (err) {
             console.error('[AuctionRoomPage] Failed to parse auction update payload', err)
             // Fallback to reloading
-            loadAuction().catch(() => {})
-            loadBids().catch(() => {})
+            loadAuction(effectiveAuctionId).catch(() => {})
+            loadBids(effectiveAuctionId).catch(() => {})
+            if (isSessionRoom) {
+              loadSessionQueue().catch(() => {})
+            }
           }
         })
 
-        client.subscribe(`/topic/chat/${id}`, (msg) => {
+        client.subscribe(`/topic/chat/${effectiveAuctionId}`, (msg) => {
           try {
             const payload = JSON.parse(msg.body)
             setMessages((prev) => [
@@ -164,7 +253,7 @@ export default function AuctionRoomPage() {
             ])
           } catch (err) {
             console.error('[AuctionRoomPage] Failed to parse websocket chat payload', err)
-            loadMessages().catch(() => {})
+            loadMessages(effectiveAuctionId).catch(() => {})
           }
         })
       },
@@ -176,7 +265,7 @@ export default function AuctionRoomPage() {
       setWsStatus('disconnected')
       client.deactivate()
     }
-  }, [id, loadAuction, loadBids, loadMessages])
+  }, [effectiveAuctionId, loadAuction, loadBids, loadMessages, isSessionRoom, loadSessionQueue])
 
   const formatVnd = (value) => {
     if (value == null) return '-'
@@ -205,7 +294,12 @@ export default function AuctionRoomPage() {
     setError(null)
     try {
       await action()
-      await Promise.all([loadAuction(), loadBids()])
+      if (isSessionRoom) {
+        await loadSessionQueue()
+      }
+      if (effectiveAuctionId) {
+        await Promise.all([loadAuction(effectiveAuctionId), loadBids(effectiveAuctionId)])
+      }
     } catch (err) {
       console.error('[AuctionRoomPage] Auction action failed', err)
       setError(err?.response?.data?.message || 'Thao tác thất bại.')
@@ -215,10 +309,11 @@ export default function AuctionRoomPage() {
   // Submit a standard bid amount.
   const handlePlaceBid = (event) => {
     event.preventDefault()
+    if (!effectiveAuctionId) return
     const amount = Number(bidAmount)
     if (!Number.isFinite(amount) || amount <= 0) return
     submitAction(async () => {
-      await placeBid(id, { amount })
+      await placeBid(effectiveAuctionId, { amount })
       setBidAmount('')
     })
   }
@@ -226,10 +321,11 @@ export default function AuctionRoomPage() {
   // Submit sealed bid amount for sealed auctions.
   const handleSealedBid = (event) => {
     event.preventDefault()
+    if (!effectiveAuctionId) return
     const amount = Number(sealedAmount)
     if (!Number.isFinite(amount) || amount <= 0) return
     submitAction(async () => {
-      await submitSealedBid(id, { amount })
+      await submitSealedBid(effectiveAuctionId, { amount })
       setSealedAmount('')
     })
   }
@@ -237,10 +333,11 @@ export default function AuctionRoomPage() {
   // Set proxy auto-bidding max amount.
   const handleSetProxy = (event) => {
     event.preventDefault()
+    if (!effectiveAuctionId) return
     const maxAmount = Number(proxyMaxAmount)
     if (!Number.isFinite(maxAmount) || maxAmount <= 0) return
     submitAction(async () => {
-      await setProxyBid(id, { maxAmount })
+      await setProxyBid(effectiveAuctionId, { maxAmount })
       setProxyMaxAmount('')
     })
   }
@@ -248,11 +345,12 @@ export default function AuctionRoomPage() {
   // Send chat message to auction live chat.
   const handleSendChat = async (event) => {
     event.preventDefault()
+    if (!effectiveAuctionId) return
     const content = chatInput.trim()
     if (!content) return
 
     try {
-      await sendLiveChatMessage(id, { content })
+      await sendLiveChatMessage(effectiveAuctionId, { content })
       setChatInput('')
     } catch (err) {
       console.error('[AuctionRoomPage] Failed to send chat message', err)
@@ -316,7 +414,44 @@ export default function AuctionRoomPage() {
     setProfileDetail(null)
   }
 
-  const canBuyNow = useMemo(() => auction?.status === 'ACTIVE', [auction])
+  const canBuyNow = useMemo(() => Boolean(effectiveAuctionId) && auction?.status === 'ACTIVE', [auction, effectiveAuctionId])
+  const sortedSessionAuctions = useMemo(
+    () => [...sessionAuctions].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)),
+    [sessionAuctions]
+  )
+  const waitingQueue = useMemo(
+    () => sortedSessionAuctions.filter((a) => a.status === 'WAITING'),
+    [sortedSessionAuctions]
+  )
+  const latestEndedInSession = useMemo(() => {
+    return sortedSessionAuctions
+      .filter((a) => a.status === 'ENDED' && a.endTime)
+      .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0] || null
+  }, [sortedSessionAuctions])
+  const breakTargetMs = useMemo(() => {
+    if (!isSessionRoom) return null
+    if (auction?.status === 'ACTIVE') return null
+    if (waitingQueue.length === 0) return null
+    if (!latestEndedInSession?.endTime) return null
+    return new Date(latestEndedInSession.endTime).getTime() + BREAK_BETWEEN_ITEMS_SECONDS * 1000
+  }, [isSessionRoom, auction?.status, waitingQueue.length, latestEndedInSession])
+  const breakRemainingSeconds = breakTargetMs == null
+    ? null
+    : Math.max(0, Math.ceil((breakTargetMs - nowMs) / 1000))
+  const isBreakBetweenItems = Boolean(
+    isSessionRoom &&
+    auction?.status !== 'ACTIVE' &&
+    waitingQueue.length > 0 &&
+    breakRemainingSeconds != null &&
+    breakRemainingSeconds > 0
+  )
+
+  const formatRemaining = (seconds) => {
+    const mm = Math.floor(seconds / 60)
+    const ss = seconds % 60
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+  }
+
   const itemImageUrls = useMemo(() => {
     const urls = auction?.item?.imageUrls
     if (!Array.isArray(urls)) return []
@@ -343,14 +478,35 @@ export default function AuctionRoomPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <PageHeaderFrame
           title="Phòng đấu giá"
-          description="Theo dõi giá thời gian thực, đặt giá và trao đổi trực tiếp trong phiên."
+          description={isSessionRoom
+            ? 'Một phòng duy nhất cho cả phiên: hệ thống tự chuyển sang vật phẩm kế tiếp khi đến lượt.'
+            : 'Theo dõi giá thời gian thực, đặt giá và trao đổi trực tiếp trong phiên.'}
+          actions={isSessionRoom ? (
+            <Link
+              to={`/sessions/${sessionRoomId}`}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium"
+            >
+              Xem hàng chờ vật phẩm
+            </Link>
+          ) : undefined}
         />
 
         {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
+        {isSessionRoom && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+            {auction?.status === 'ACTIVE'
+              ? `Đang đấu giá vật phẩm hiện tại trong phiên: ${auction?.item?.name || 'Đang cập nhật'}`
+              : isBreakBetweenItems
+                ? `Đang nghỉ giữa hai vật phẩm. Mở món kế tiếp sau ${formatRemaining(breakRemainingSeconds)}.`
+                : waitingQueue.length > 0
+                  ? 'Đang chuẩn bị mở vật phẩm tiếp theo...'
+                  : 'Phiên đã hết vật phẩm chờ đấu giá.'}
+          </div>
+        )}
 
         {loading ? (
           <div className="bg-white border border-gray-200 rounded-xl p-8 text-gray-600">Đang tải dữ liệu...</div>
-        ) : auction && (
+        ) : auction ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
@@ -523,7 +679,7 @@ export default function AuctionRoomPage() {
                   <div className={"border border-gray-200 rounded-xl p-4 flex items-center gap-2 flex-wrap" + ((isEnglish || isDutch) ? "" : " hidden")}>
                     <button
                       type="button"
-                      onClick={() => submitAction(() => buyNow(id))}
+                      onClick={() => effectiveAuctionId && submitAction(() => buyNow(effectiveAuctionId))}
                       disabled={!canBuyNow}
                       className="px-3 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
@@ -531,7 +687,7 @@ export default function AuctionRoomPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => submitAction(() => cancelProxyBid(id))}
+                      onClick={() => effectiveAuctionId && submitAction(() => cancelProxyBid(effectiveAuctionId))}
                       className="px-3 py-2 rounded bg-slate-600 text-white hover:bg-slate-700"
                     >
                       Hủy ủy quyền
@@ -554,6 +710,32 @@ export default function AuctionRoomPage() {
                   {auctionType === 'SEALED' && <p className="text-sm text-slate-700">Giá đặt kín chỉ gửi một lần, nên đặt mức tối ưu theo ngân sách và độ hiếm vật phẩm.</p>}
                   {!['ENGLISH', 'DUTCH', 'SEALED'].includes(auctionType || '') && <p className="text-sm text-slate-700">Theo dõi thông báo hệ thống để nắm quy tắc phiên đấu giá hiện tại.</p>}
                 </div>
+
+                {isSessionRoom && (
+                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3">Hàng chờ vật phẩm trong phiên</h3>
+                    {sortedSessionAuctions.length === 0 ? (
+                      <p className="text-sm text-slate-600">Chưa có dữ liệu vật phẩm.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {sortedSessionAuctions.map((q) => (
+                          <div
+                            key={q.id}
+                            className={`rounded-lg border px-3 py-2 ${q.id === effectiveAuctionId ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-slate-900 line-clamp-1">{q.item?.name || 'Vật phẩm'}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusMeta(q.status).className}`}>
+                                {getStatusMeta(q.status).label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-1">Thứ tự: #{(q.orderIndex ?? 0) + 1}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -629,6 +811,12 @@ export default function AuctionRoomPage() {
                 </form>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl p-8 text-gray-700">
+            {isSessionRoom
+              ? 'Phiên này chưa có vật phẩm đang mở. Hệ thống sẽ tự chuyển khi đến lượt vật phẩm kế tiếp.'
+              : 'Không tìm thấy dữ liệu phòng đấu giá.'}
           </div>
         )}
       </div>

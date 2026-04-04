@@ -7,11 +7,8 @@ import PageHeaderFrame from '../components/PageHeaderFrame'
 const readApiData = (response) => response?.data?.data ?? response?.data ?? null
 
 const STATUS_META = {
-  SCHEDULED: { label: 'Đã lên lịch', className: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+  SCHEDULED: { label: 'Sắp diễn ra', className: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
   ACTIVE: { label: 'Đang diễn ra', className: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-  PAUSED: { label: 'Tạm dừng', className: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
-  COMPLETED: { label: 'Đã kết thúc', className: 'bg-gray-100 text-gray-600 border-gray-300', dot: 'bg-gray-400' },
-  CANCELLED: { label: 'Đã hủy', className: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' },
 }
 
 const TYPE_META = {
@@ -28,24 +25,19 @@ export default function SessionsPage() {
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(12)
   const [statusFilter, setStatusFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [statusCounts, setStatusCounts] = useState({
     SCHEDULED: 0,
     ACTIVE: 0,
-    PAUSED: 0,
-    COMPLETED: 0,
-    CANCELLED: 0,
   })
 
-  const loadSessions = useCallback(async (targetPage, targetSize, status, type) => {
+  const loadSessions = useCallback(async (targetPage, targetSize, status) => {
     setLoading(true)
     setError(null)
     try {
-      const filters = {}
+      const filters = { type: 'ENGLISH' }
       if (status) filters.status = status
-      if (type) filters.type = type
       
       const response = await listSessions(filters, targetPage, targetSize)
       const payload = readApiData(response)
@@ -60,13 +52,13 @@ export default function SessionsPage() {
   }, [])
 
   const loadStatusCounts = useCallback(async () => {
-    const statuses = ['SCHEDULED', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']
+    const statuses = ['SCHEDULED', 'ACTIVE']
     const counts = {}
     
     await Promise.all(
       statuses.map(async (status) => {
         try {
-          const response = await listSessions({ status }, 0, 1)
+          const response = await listSessions({ status, type: 'ENGLISH' }, 0, 1)
           const payload = readApiData(response)
           counts[status] = payload?.meta?.totalElements || 0
         } catch {
@@ -79,8 +71,8 @@ export default function SessionsPage() {
   }, [])
 
   useEffect(() => {
-    loadSessions(page, size, statusFilter, typeFilter)
-  }, [loadSessions, page, size, statusFilter, typeFilter])
+    loadSessions(page, size, statusFilter)
+  }, [loadSessions, page, size, statusFilter])
 
   useEffect(() => {
     loadStatusCounts()
@@ -96,11 +88,6 @@ export default function SessionsPage() {
     setPage(0)
   }
 
-  const handleTypeChange = (newType) => {
-    setTypeFilter(newType)
-    setPage(0)
-  }
-
   const getStatusMeta = (status) => STATUS_META[status] || { label: status || '-', className: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400' }
   const getTypeMeta = (type) => TYPE_META[type] || { label: type || '-', icon: '📦', color: 'text-gray-600' }
 
@@ -111,11 +98,8 @@ export default function SessionsPage() {
 
   const statusOptions = [
     { key: '', label: 'Tất cả', className: 'bg-gray-100 text-gray-700 border-gray-300' },
-    { key: 'SCHEDULED', label: 'Đã lên lịch', className: 'bg-blue-50 text-blue-700 border-blue-300' },
+    { key: 'SCHEDULED', label: 'Sắp diễn ra', className: 'bg-blue-50 text-blue-700 border-blue-300' },
     { key: 'ACTIVE', label: 'Đang diễn ra', className: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
-    { key: 'PAUSED', label: 'Tạm dừng', className: 'bg-amber-50 text-amber-700 border-amber-300' },
-    { key: 'COMPLETED', label: 'Đã kết thúc', className: 'bg-gray-100 text-gray-600 border-gray-300' },
-    { key: 'CANCELLED', label: 'Đã hủy', className: 'bg-red-50 text-red-700 border-red-300' },
   ]
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0)
@@ -135,7 +119,7 @@ export default function SessionsPage() {
             <div className="flex flex-wrap gap-2">
               {statusOptions.map((status) => {
                 const count = status.key === '' ? totalCount : (statusCounts[status.key] || 0)
-                const showCount = status.key !== 'COMPLETED' && status.key !== 'CANCELLED'
+                const showCount = true
                 return (
                   <button
                     key={status.key}
@@ -157,20 +141,7 @@ export default function SessionsPage() {
               })}
             </div>
 
-            {/* Type Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Loại phiên:</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => handleTypeChange(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Tất cả loại</option>
-                <option value="ENGLISH">📈 Tăng dần (English)</option>
-                <option value="DUTCH">📉 Giảm dần (Dutch)</option>
-                <option value="SEALED">🔒 Kín (Sealed Bid)</option>
-              </select>
-            </div>
+            <div className="text-sm text-gray-600">Đang hiển thị: chỉ phiên tăng dần (English)</div>
           </div>
         </div>
 
@@ -182,7 +153,7 @@ export default function SessionsPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
             <p className="text-gray-600 mb-2">Không có phiên nào phù hợp với bộ lọc.</p>
             <button
-              onClick={() => { setStatusFilter(''); setTypeFilter(''); }}
+              onClick={() => { setStatusFilter('') }}
               className="text-indigo-600 hover:underline text-sm"
             >
               Xóa bộ lọc
