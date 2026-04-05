@@ -129,7 +129,7 @@ export default function SessionDetailPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-5 text-sm">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-slate-500">Loại phiên</p>
+                  <p className="text-slate-500">Lỗi phiên</p>
                   <p className="font-semibold text-slate-800 mt-1">
                     {getTypeLabel(session.type)}
                   </p>
