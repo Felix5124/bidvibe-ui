@@ -10,7 +10,7 @@ import {
 } from "../api/auctions";
 import { muteUser, unmuteUser } from "../api/adminUsers";
 import { getUserProfile } from "../api/users";
-import { createStompClient } from "../lib/stomp";
+import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import { formatVND } from "../utils/formatVND";
 import Countdown from "../components/Countdown";
@@ -21,30 +21,12 @@ const readApiData = (response) =>
   response?.data?.data ?? response?.data ?? null;
 
 const STATUS_META = {
-  SCHEDULED: {
-    label: "Đã lên lịch",
-    className: "bg-slate-100 text-slate-700 border-slate-200",
-  },
-  WAITING: {
-    label: "Chờ đến lượt",
-    className: "bg-blue-100 text-blue-700 border-blue-200",
-  },
-  ACTIVE: {
-    label: "Đang diễn ra",
-    className: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  },
-  PAUSED: {
-    label: "Tạm dừng",
-    className: "bg-amber-100 text-amber-700 border-amber-200",
-  },
-  COMPLETED: {
-    label: "Đã kết thúc",
-    className: "bg-zinc-100 text-zinc-700 border-zinc-200",
-  },
-  CANCELLED: {
-    label: "Đã hủy",
-    className: "bg-rose-100 text-rose-700 border-rose-200",
-  },
+  SCHEDULED: { label: "Đã lên lịch", className: "bg-slate-100 text-slate-700 border-slate-200" },
+  WAITING: { label: "Chờ đến lượt", className: "bg-blue-100 text-blue-700 border-blue-200" },
+  ACTIVE: { label: "Đang diễn ra", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  PAUSED: { label: "Tạm dừng", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  COMPLETED: { label: "Đã kết thúc", className: "bg-zinc-100 text-zinc-700 border-zinc-200" },
+  CANCELLED: { label: "Đã hủy", className: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
 const AUCTION_TYPE_LABEL = {
@@ -70,9 +52,7 @@ export default function AuctionRoomPage() {
 
   const [auction, setAuction] = useState(null);
   const [sessionAuctions, setSessionAuctions] = useState([]);
-  const [currentAuctionId, setCurrentAuctionId] = useState(
-    isSessionRoom ? null : id,
-  );
+  const [currentAuctionId, setCurrentAuctionId] = useState(isSessionRoom ? null : id);
   const [bids, setBids] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,12 +60,7 @@ export default function AuctionRoomPage() {
 
   const [bidAmount, setBidAmount] = useState("");
   const [chatInput, setChatInput] = useState("");
-  const [contextMenu, setContextMenu] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    targetUser: null,
-  });
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetUser: null });
   const [profileModalUser, setProfileModalUser] = useState(null);
   const [profileDetail, setProfileDetail] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -126,41 +101,24 @@ export default function AuctionRoomPage() {
     return current;
   }, [isSessionRoom, sessionRoomId, parseSessionAuctions, pickCurrentAuction]);
 
-  // Load auction detail for the room header and status panel.
   const loadAuction = useCallback(async (auctionId) => {
-    if (!auctionId) {
-      setAuction(null);
-      return;
-    }
+    if (!auctionId) { setAuction(null); return; }
     const response = await getAuction(auctionId);
     setAuction(readApiData(response));
   }, []);
 
-  // Load recent bid history to display latest bidding activity.
   const loadBids = useCallback(async (auctionId) => {
-    if (!auctionId) {
-      setBids([]);
-      return;
-    }
+    if (!auctionId) { setBids([]); return; }
     const response = await getAuctionBids(auctionId, 0, 20);
     const payload = readApiData(response);
     setBids(payload?.content || []);
   }, []);
 
-  // Load persisted live-chat history via REST API.
   const loadMessages = useCallback(async (auctionId) => {
-    if (!auctionId) {
-      setMessages([]);
-      return;
-    }
+    if (!auctionId) { setMessages([]); return; }
     const response = await getLiveChatMessages(auctionId);
     const payload = readApiData(response);
-    // Handle paginated response (content array) or direct array
-    const messagesArray = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.content)
-        ? payload.content
-        : [];
+    const messagesArray = Array.isArray(payload) ? payload : Array.isArray(payload?.content) ? payload.content : [];
     setMessages(messagesArray);
   }, []);
 
@@ -172,15 +130,9 @@ export default function AuctionRoomPage() {
         if (isSessionRoom) {
           const current = await loadSessionQueue();
           if (current?.id) {
-            await Promise.all([
-              loadAuction(current.id),
-              loadBids(current.id),
-              loadMessages(current.id),
-            ]);
+            await Promise.all([loadAuction(current.id), loadBids(current.id), loadMessages(current.id)]);
           } else {
-            setAuction(null);
-            setBids([]);
-            setMessages([]);
+            setAuction(null); setBids([]); setMessages([]);
           }
         } else if (id) {
           setCurrentAuctionId(id);
@@ -188,34 +140,17 @@ export default function AuctionRoomPage() {
         }
       } catch (err) {
         console.error("[AuctionRoomPage] Failed to load room data", err);
-        setError(
-          err?.response?.data?.message || "Không tải được phong dau gia.",
-        );
+        setError(err?.response?.data?.message || "Không tải được phòng đấu giá.");
       } finally {
         setLoading(false);
       }
     };
-
-    if (isSessionRoom ? sessionRoomId : id) {
-      run();
-    }
-  }, [
-    isSessionRoom,
-    sessionRoomId,
-    id,
-    loadAuction,
-    loadBids,
-    loadMessages,
-    loadSessionQueue,
-  ]);
+    if (isSessionRoom ? sessionRoomId : id) run();
+  }, [isSessionRoom, sessionRoomId, id, loadAuction, loadBids, loadMessages, loadSessionQueue]);
 
   useEffect(() => {
     if (!isSessionRoom || !sessionRoomId) return undefined;
-
-    const timer = setInterval(() => {
-      loadSessionQueue().catch(() => {});
-    }, 3000);
-
+    const timer = setInterval(() => { loadSessionQueue().catch(() => {}); }, 3000);
     return () => clearInterval(timer);
   }, [isSessionRoom, sessionRoomId, loadSessionQueue]);
 
@@ -224,102 +159,93 @@ export default function AuctionRoomPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // --- SOCKET.IO FOR AUCTION ROOM ---
   useEffect(() => {
     if (!effectiveAuctionId) return;
-    Promise.all([
-      loadAuction(effectiveAuctionId),
-      loadBids(effectiveAuctionId),
-      loadMessages(effectiveAuctionId),
-    ]).catch(() => {});
-  }, [effectiveAuctionId, loadAuction, loadBids, loadMessages]);
 
-  useEffect(() => {
-    if (!effectiveAuctionId) return undefined;
+    const socket = getSocket();
 
-    const client = createStompClient({
-      onConnect: () => {
-        // Subscribe to auction updates - use payload directly for faster price updates
-        client.subscribe(`/topic/auction/${effectiveAuctionId}`, (msg) => {
-          try {
-            const payload = JSON.parse(msg.body);
-            console.log("[AuctionRoomPage] Received auction update:", payload);
+    const onConnect = () => {
+      socket.emit('auction:join', effectiveAuctionId);
+    };
 
-            // Update auction state immediately with WebSocket data
-            if (
-              payload.currentPrice !== undefined ||
-              payload.status ||
-              payload.endTime
-            ) {
-              setAuction((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  currentPrice: payload.currentPrice ?? prev.currentPrice,
-                  status: payload.status ?? prev.status,
-                  endTime: payload.endTime ?? prev.endTime,
-                  winner: payload.currentLeader ?? prev.winner,
-                };
-              });
-              // Also reload bids to show latest bid history
-              loadBids(effectiveAuctionId).catch(() => {});
-              if (isSessionRoom && payload.status === "ENDED") {
-                loadSessionQueue().catch(() => {});
-              }
-            }
-          } catch (err) {
-            console.error(
-              "[AuctionRoomPage] Failed to parse auction update payload",
-              err,
-            );
-            // Fallback to reloading
-            loadAuction(effectiveAuctionId).catch(() => {});
-            loadBids(effectiveAuctionId).catch(() => {});
-            if (isSessionRoom) {
-              loadSessionQueue().catch(() => {});
-            }
-          }
-        });
+    const onAuctionUpdate = (payload) => {
+      setAuction((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentPrice: payload.currentPrice ?? prev.currentPrice,
+          status: payload.status ?? prev.status,
+          endTime: payload.endTime ?? prev.endTime,
+          winner: payload.currentLeader ?? prev.winner,
+        };
+      });
+      loadBids(effectiveAuctionId).catch(() => {});
+      if (isSessionRoom && payload.status === "ENDED") {
+        loadSessionQueue().catch(() => {});
+      }
+    };
 
-        client.subscribe(`/topic/chat/${effectiveAuctionId}`, (msg) => {
-          try {
-            const payload = JSON.parse(msg.body);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: payload.messageId || crypto.randomUUID(),
-                sender: {
-                  id: payload.senderId,
-                  nickname: payload.senderNickname,
-                  avatarUrl: payload.senderAvatarUrl,
-                },
-                content: payload.content,
-                createdAt: payload.timestamp,
-              },
-            ]);
-          } catch (err) {
-            console.error(
-              "[AuctionRoomPage] Failed to parse websocket chat payload",
-              err,
-            );
-            loadMessages(effectiveAuctionId).catch(() => {});
-          }
-        });
-      },
-      onWebSocketError: () => {},
-      onStompError: () => {},
-    });
+    const onChatMessage = (payload) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === payload.messageId)) return prev;
+        const mine = payload.senderId === user?.id;
+        if (mine) {
+          return prev.map((m) =>
+            m.id.startsWith('temp-') && m.sender?.id === payload.senderId && m.content === payload.content
+              ? {
+                  id: payload.messageId,
+                  sender: {
+                    id: payload.senderId,
+                    nickname: payload.senderNickname,
+                    avatarUrl: payload.senderAvatarUrl,
+                  },
+                  content: payload.content,
+                  createdAt: payload.timestamp,
+                }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: payload.messageId || crypto.randomUUID(),
+            sender: {
+              id: payload.senderId,
+              nickname: payload.senderNickname,
+              avatarUrl: payload.senderAvatarUrl,
+            },
+            content: payload.content,
+            createdAt: payload.timestamp,
+          },
+        ];
+      });
+    };
+
+    const onWsError = (payload) => {
+      if (payload.message) {
+        toast.error(payload.message);
+      }
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('auction_update', onAuctionUpdate);
+    socket.on('chat_message', onChatMessage);
+    socket.on('error', onWsError);
+
+    if (socket.connected) {
+      onConnect();
+    }
 
     return () => {
-      client.deactivate();
+      socket.emit('auction:leave', effectiveAuctionId);
+      socket.off('connect', onConnect);
+      socket.off('auction_update', onAuctionUpdate);
+      socket.off('chat_message', onChatMessage);
+      socket.off('error', onWsError);
     };
-  }, [
-    effectiveAuctionId,
-    loadAuction,
-    loadBids,
-    loadMessages,
-    isSessionRoom,
-    loadSessionQueue,
-  ]);
+  }, [effectiveAuctionId, loadBids, isSessionRoom, loadSessionQueue, toast]);
+  // -------------------------------------------------------------
 
   const formatVnd = (value) => {
     if (value == null) return "-";
@@ -338,11 +264,8 @@ export default function AuctionRoomPage() {
     };
 
   const auctionType = auction?.session?.type || auction?.type;
+  const auctionTypeLabel = AUCTION_TYPE_LABEL[auctionType] || auctionType || "Không xác định";
 
-  const auctionTypeLabel =
-    AUCTION_TYPE_LABEL[auctionType] || auctionType || "Không xác định";
-
-  // Wrapper to execute an auction action then refresh room data.
   const submitAction = async (action) => {
     setError(null);
     try {
@@ -351,10 +274,7 @@ export default function AuctionRoomPage() {
         await loadSessionQueue();
       }
       if (effectiveAuctionId) {
-        await Promise.all([
-          loadAuction(effectiveAuctionId),
-          loadBids(effectiveAuctionId),
-        ]);
+        await Promise.all([loadAuction(effectiveAuctionId), loadBids(effectiveAuctionId)]);
       }
     } catch (err) {
       console.error("[AuctionRoomPage] Auction action failed", err);
@@ -362,7 +282,6 @@ export default function AuctionRoomPage() {
     }
   };
 
-  // Submit a standard bid amount.
   const handlePlaceBid = (event) => {
     event.preventDefault();
     if (!effectiveAuctionId) return;
@@ -374,20 +293,32 @@ export default function AuctionRoomPage() {
     });
   };
 
-  // Send chat message to auction live chat.
   const handleSendChat = async (event) => {
     event.preventDefault();
     if (!effectiveAuctionId) return;
     const content = chatInput.trim();
     if (!content) return;
 
+    const tempId = 'temp-' + crypto.randomUUID();
+    const optimisticMsg = {
+      id: tempId,
+      sender: {
+        id: user?.id,
+        nickname: user?.nickname || user?.email || 'You',
+        avatarUrl: user?.avatarUrl || null,
+      },
+      content: content,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setChatInput("");
+
     try {
       await sendLiveChatMessage(effectiveAuctionId, { content });
-      setChatInput("");
     } catch (err) {
       console.error("[AuctionRoomPage] Failed to send chat message", err);
-      const errorMessage =
-        err?.response?.data?.message || "Gửi tin nhắn thất bại.";
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      const errorMessage = err?.response?.data?.message || "Gửi tin nhắn thất bại.";
       if (err?.response?.status === 403) {
         toast.error("Bạn đã bị tắt tiếng và không thể gửi tin nhắn.");
       } else {
@@ -399,16 +330,10 @@ export default function AuctionRoomPage() {
   const handleContextMenu = (e, sender) => {
     if (user?.role !== "ADMIN") return;
     e.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      targetUser: sender,
-    });
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, targetUser: sender });
   };
 
-  const closeContextMenu = () =>
-    setContextMenu({ visible: false, x: 0, y: 0, targetUser: null });
+  const closeContextMenu = () => setContextMenu({ visible: false, x: 0, y: 0, targetUser: null });
 
   const handleMuteUser = async () => {
     if (!contextMenu.targetUser) return;
@@ -466,56 +391,38 @@ export default function AuctionRoomPage() {
     if (!suggestedBidAmount) return;
     setBidAmount(suggestedBidAmount);
   };
+
   const sortedSessionAuctions = useMemo(() => {
     return [...sessionAuctions].sort((a, b) => {
-      const aTime =
-        toTimeMs(a?.startTime) ||
-        toTimeMs(a?.createdAt) ||
-        toTimeMs(a?.updatedAt) ||
-        toTimeMs(a?.endTime);
-      const bTime =
-        toTimeMs(b?.startTime) ||
-        toTimeMs(b?.createdAt) ||
-        toTimeMs(b?.updatedAt) ||
-        toTimeMs(b?.endTime);
-
+      const aTime = toTimeMs(a?.startTime) || toTimeMs(a?.createdAt) || toTimeMs(a?.updatedAt) || toTimeMs(a?.endTime);
+      const bTime = toTimeMs(b?.startTime) || toTimeMs(b?.createdAt) || toTimeMs(b?.updatedAt) || toTimeMs(b?.endTime);
       if (aTime !== bTime) return bTime - aTime;
       return (b?.orderIndex ?? 0) - (a?.orderIndex ?? 0);
     });
   }, [sessionAuctions]);
+
   const waitingQueue = useMemo(
     () => sortedSessionAuctions.filter((a) => a.status === "WAITING"),
     [sortedSessionAuctions],
   );
+
   const latestEndedInSession = useMemo(() => {
     return (
       sortedSessionAuctions
         .filter((a) => a.status === "ENDED" && a.endTime)
-        .sort(
-          (a, b) =>
-            new Date(b.endTime).getTime() - new Date(a.endTime).getTime(),
-        )[0] || null
+        .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0] || null
     );
   }, [sortedSessionAuctions]);
+
   const breakTargetMs = useMemo(() => {
     if (!isSessionRoom) return null;
     if (auction?.status === "ACTIVE") return null;
     if (waitingQueue.length === 0) return null;
     if (!latestEndedInSession?.endTime) return null;
-    return (
-      new Date(latestEndedInSession.endTime).getTime() +
-      BREAK_BETWEEN_ITEMS_SECONDS * 1000
-    );
-  }, [
-    isSessionRoom,
-    auction?.status,
-    waitingQueue.length,
-    latestEndedInSession,
-  ]);
-  const breakRemainingSeconds =
-    breakTargetMs == null
-      ? null
-      : Math.max(0, Math.ceil((breakTargetMs - nowMs) / 1000));
+    return new Date(latestEndedInSession.endTime).getTime() + BREAK_BETWEEN_ITEMS_SECONDS * 1000;
+  }, [isSessionRoom, auction?.status, waitingQueue.length, latestEndedInSession]);
+
+  const breakRemainingSeconds = breakTargetMs == null ? null : Math.max(0, Math.ceil((breakTargetMs - nowMs) / 1000));
   const isBreakBetweenItems = Boolean(
     isSessionRoom &&
     auction?.status !== "ACTIVE" &&
@@ -527,10 +434,9 @@ export default function AuctionRoomPage() {
   const itemImageUrls = useMemo(() => {
     const urls = auction?.item?.imageUrls;
     if (!Array.isArray(urls)) return [];
-    return urls.filter(
-      (url) => typeof url === "string" && url.trim().length > 0,
-    );
+    return urls.filter((url) => typeof url === "string" && url.trim().length > 0);
   }, [auction?.item?.imageUrls]);
+
   const itemImageUrl = itemImageUrls[itemImageIndex] || null;
   const modalImageUrl = itemImageUrls[modalImageIndex] || null;
 
@@ -559,7 +465,6 @@ export default function AuctionRoomPage() {
 
   const handleSlideItemImage = (direction) => {
     if (itemImageUrls.length < 2 || isImageSliding) return;
-
     const outOffset = direction === "next" ? -14 : 14;
     const inOffset = direction === "next" ? 14 : -14;
     setIsImageSliding(true);
@@ -582,21 +487,12 @@ export default function AuctionRoomPage() {
     }, 120);
   };
 
-  const handlePrevItemImage = () => {
-    handleSlideItemImage("prev");
-  };
-
-  const handleNextItemImage = () => {
-    handleSlideItemImage("next");
-  };
-
+  const handlePrevItemImage = () => handleSlideItemImage("prev");
+  const handleNextItemImage = () => handleSlideItemImage("next");
   const handlePrevModalImage = () => {
     if (itemImageUrls.length < 2) return;
-    setModalImageIndex(
-      (prev) => (prev - 1 + itemImageUrls.length) % itemImageUrls.length,
-    );
+    setModalImageIndex((prev) => (prev - 1 + itemImageUrls.length) % itemImageUrls.length);
   };
-
   const handleNextModalImage = () => {
     if (itemImageUrls.length < 2) return;
     setModalImageIndex((prev) => (prev + 1) % itemImageUrls.length);
@@ -624,7 +520,6 @@ export default function AuctionRoomPage() {
 
   useEffect(() => {
     if (!isSessionRoom || loading) return;
-
     let key = "";
     let notice = "";
 
@@ -647,13 +542,8 @@ export default function AuctionRoomPage() {
       toast.warning(notice);
     }
   }, [
-    isSessionRoom,
-    loading,
-    auction?.status,
-    auction?.item?.name,
-    isBreakBetweenItems,
-    waitingQueue.length,
-    toast,
+    isSessionRoom, loading, auction?.status, auction?.item?.name,
+    isBreakBetweenItems, waitingQueue.length, toast,
   ]);
 
   return (
@@ -795,10 +685,10 @@ export default function AuctionRoomPage() {
                         }`}
                       >
                         {isCriticalEnding
-                          ? "Sap chot gia"
+                          ? "Sắp chốt giá"
                           : isEndingSoon
-                            ? "Sap het thoi gian"
-                            : "Dang cap nhat realtime"}
+                            ? "Sắp hết thời gian"
+                            : "Đang cập nhật realtime"}
                       </p>
                     )}
                   </div>
@@ -860,11 +750,7 @@ export default function AuctionRoomPage() {
                         to={`/transactions/${auction.id}/rate?auctionId=${auction.id}&toUserName=${encodeURIComponent(auction.item.seller.nickname || "")}`}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                         Đánh giá người bán
@@ -893,11 +779,7 @@ export default function AuctionRoomPage() {
                         to={`/transactions/${auction.id}/rate?auctionId=${auction.id}&toUserName=${encodeURIComponent(auction.winner.nickname || "")}`}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                         Đánh giá người mua

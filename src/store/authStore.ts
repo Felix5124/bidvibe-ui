@@ -1,8 +1,17 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { apiClient } from '../lib/base'
-import { User } from '../lib/base'
 import { logError } from '../lib/logger'
+
+export interface User {
+  id: string
+  email: string
+  name?: string
+  role?: 'USER' | 'ADMIN'
+  isBanned?: boolean
+  isMuted?: boolean
+  googleAvatar?: string
+}
 
 interface AuthStore {
   user: User | null

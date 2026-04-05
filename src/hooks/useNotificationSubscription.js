@@ -2,70 +2,47 @@ import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { useToast } from '../context/ToastContext'
-import { createStompClient } from '../lib/stomp'
+import { getSocket } from '../lib/socket'
 
 export function useNotificationSubscription() {
   const { user } = useAuthStore()
   const { addNotification, incrementUnread } = useNotificationStore()
   const { info: showInfoToast } = useToast()
-  const clientRef = useRef(null)
-  const hasConnectedRef = useRef(false)
+  const socketRef = useRef(null)
 
   useEffect(() => {
     if (!user?.id) return
 
-    const client = createStompClient({
-      onConnect: () => {
-        hasConnectedRef.current = true
-        console.log('[Notifications] WebSocket connected')
-        
-        // Subscribe to user-specific notification topic
-        client.subscribe(`/topic/notification/${user.id}`, (message) => {
-          try {
-            const payload = JSON.parse(message.body)
-            console.log('[Notifications] Received notification:', payload)
-            
-            // Add to store
-            addNotification({
-              id: payload.notificationId || payload.id || crypto.randomUUID(),
-              type: payload.type,
-              title: payload.title,
-              content: payload.content,
-              read: false,
-              createdAt: payload.createdAt || new Date().toISOString(),
-              referenceId: payload.referenceId,
-            })
-            
-            // Increment unread count
-            incrementUnread()
-            
-            // Show toast notification
-            showInfoToast(payload.title, payload.content)
-          } catch (err) {
-            console.error('[Notifications] Failed to parse notification:', err)
-          }
-        })
-      },
-      onStompError: (frame) => {
-        console.error('[Notifications] STOMP error:', frame)
-      },
-      onWebSocketError: (event) => {
-        // SockJS can emit transient errors before the first successful handshake.
-        if (!hasConnectedRef.current) {
-          return
-        }
-        console.warn('[Notifications] WebSocket unstable, waiting for reconnect:', event)
-      },
-    })
+    const socket = getSocket();
+    socketRef.current = socket;
 
-    clientRef.current = client
+    socket.on('connect', () => {
+      console.log('[Notifications] Socket.io connected');
+    });
+
+    // Server Node.js của bạn bắn event tên là 'notification'
+    socket.on('notification', (payload) => {
+      console.log('[Notifications] Received notification:', payload)
+      
+      addNotification({
+        id: payload.notificationId || payload.id || crypto.randomUUID(),
+        type: payload.type,
+        title: payload.title,
+        content: payload.content,
+        read: false,
+        createdAt: payload.createdAt || new Date().toISOString(),
+        referenceId: payload.referenceId,
+      })
+      
+      incrementUnread()
+      showInfoToast(payload.title, payload.content)
+    });
 
     return () => {
-      if (clientRef.current) {
-        clientRef.current.deactivate()
-        clientRef.current = null
+      if (socketRef.current) {
+        socketRef.current.off('notification');
+        socketRef.current = null;
       }
-      hasConnectedRef.current = false
     }
   }, [user?.id, addNotification, incrementUnread, showInfoToast])
 }
