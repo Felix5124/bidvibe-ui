@@ -1,108 +1,148 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { listSessions } from '../api/sessions'
-import { SessionsListSkeleton } from '../components/Skeleton'
-import PageHeaderFrame from '../components/PageHeaderFrame'
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { listSessions } from "../api/sessions";
+import { SessionsListSkeleton } from "../components/Skeleton";
+import PageHeaderFrame from "../components/PageHeaderFrame";
 
-const readApiData = (response) => response?.data?.data ?? response?.data ?? null
+const readApiData = (response) =>
+  response?.data?.data ?? response?.data ?? null;
 
 const STATUS_META = {
-  SCHEDULED: { label: 'Sắp diễn ra', className: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-  ACTIVE: { label: 'Đang diễn ra', className: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-}
+  SCHEDULED: {
+    label: "Sắp diễn ra",
+    className: "bg-blue-100 text-blue-700 border-blue-200",
+    dot: "bg-blue-500",
+  },
+  ACTIVE: {
+    label: "Đang diễn ra",
+    className: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    dot: "bg-emerald-500",
+  },
+};
 
 const TYPE_META = {
-  ENGLISH: { label: 'Tăng dần', icon: '📈', color: 'text-green-600' },
-  DUTCH: { label: 'Giảm dần', icon: '📉', color: 'text-red-600' },
-  SEALED: { label: 'Kín', icon: '🔒', color: 'text-purple-600' },
-}
+  ENGLISH: { label: "Tăng dần", icon: "📈", color: "text-green-600" },
+  DUTCH: { label: "Giảm dần", icon: "📉", color: "text-red-600" },
+  SEALED: { label: "Kín", icon: "🔒", color: "text-purple-600" },
+};
 
-const PAGE_SIZE_OPTIONS = [6, 12, 24, 48]
+const PAGE_SIZE_OPTIONS = [6, 12, 24, 48];
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState([])
-  const [meta, setMeta] = useState(null)
-  const [page, setPage] = useState(0)
-  const [size, setSize] = useState(12)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [sessions, setSessions] = useState([]);
+  const [meta, setMeta] = useState(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(12);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [statusCounts, setStatusCounts] = useState({
     SCHEDULED: 0,
     ACTIVE: 0,
-  })
+  });
 
   const loadSessions = useCallback(async (targetPage, targetSize, status) => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const filters = { type: 'ENGLISH' }
-      if (status) filters.status = status
-      
-      const response = await listSessions(filters, targetPage, targetSize)
-      const payload = readApiData(response)
-      setSessions(payload?.content || [])
-      setMeta(payload?.meta || null)
+      const filters = { type: "ENGLISH" };
+      if (status) filters.status = status;
+
+      const response = await listSessions(filters, targetPage, targetSize);
+      const payload = readApiData(response);
+      setSessions(payload?.content || []);
+      setMeta(payload?.meta || null);
     } catch (err) {
-      console.error('[SessionsPage] Failed to load sessions', err)
-      setError(err?.response?.data?.message || 'Không tải được danh sách phiên đấu giá.')
+      console.error("[SessionsPage] Failed to load sessions", err);
+      setError(
+        err?.response?.data?.message ||
+          "Không tải được danh sách phiên đấu giá.",
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   const loadStatusCounts = useCallback(async () => {
-    const statuses = ['SCHEDULED', 'ACTIVE']
-    const counts = {}
-    
+    const statuses = ["SCHEDULED", "ACTIVE"];
+    const counts = {};
+
     await Promise.all(
       statuses.map(async (status) => {
         try {
-          const response = await listSessions({ status, type: 'ENGLISH' }, 0, 1)
-          const payload = readApiData(response)
-          counts[status] = payload?.meta?.totalElements || 0
+          const response = await listSessions(
+            { status, type: "ENGLISH" },
+            0,
+            1,
+          );
+          const payload = readApiData(response);
+          counts[status] = payload?.meta?.totalElements || 0;
         } catch {
-          counts[status] = 0
+          counts[status] = 0;
         }
-      })
-    )
-    
-    setStatusCounts(counts)
-  }, [])
+      }),
+    );
+
+    setStatusCounts(counts);
+  }, []);
 
   useEffect(() => {
-    loadSessions(page, size, statusFilter)
-  }, [loadSessions, page, size, statusFilter])
+    loadSessions(page, size, statusFilter);
+  }, [loadSessions, page, size, statusFilter]);
 
   useEffect(() => {
-    loadStatusCounts()
-  }, [loadStatusCounts])
+    loadStatusCounts();
+  }, [loadStatusCounts]);
 
   const handleSizeChange = (newSize) => {
-    setSize(newSize)
-    setPage(0)
-  }
+    setSize(newSize);
+    setPage(0);
+  };
 
   const handleStatusChange = (newStatus) => {
-    setStatusFilter(newStatus)
-    setPage(0)
-  }
+    setStatusFilter(newStatus);
+    setPage(0);
+  };
 
-  const getStatusMeta = (status) => STATUS_META[status] || { label: status || '-', className: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400' }
-  const getTypeMeta = (type) => TYPE_META[type] || { label: type || '-', icon: '📦', color: 'text-gray-600' }
+  const getStatusMeta = (status) =>
+    STATUS_META[status] || {
+      label: status || "-",
+      className: "bg-gray-100 text-gray-700 border-gray-200",
+      dot: "bg-gray-400",
+    };
+  const getTypeMeta = (type) =>
+    TYPE_META[type] || {
+      label: type || "-",
+      icon: "📦",
+      color: "text-gray-600",
+    };
 
   const formatDateTime = (value) => {
-    if (!value) return '-'
-    return new Date(value).toLocaleString('vi-VN')
-  }
+    if (!value) return "-";
+    return new Date(value).toLocaleString("vi-VN");
+  };
 
   const statusOptions = [
-    { key: '', label: 'Tất cả', className: 'bg-gray-100 text-gray-700 border-gray-300' },
-    { key: 'SCHEDULED', label: 'Sắp diễn ra', className: 'bg-blue-50 text-blue-700 border-blue-300' },
-    { key: 'ACTIVE', label: 'Đang diễn ra', className: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
-  ]
+    {
+      key: "",
+      label: "Tất cả",
+      className: "bg-gray-100 text-gray-700 border-gray-300",
+    },
+    {
+      key: "SCHEDULED",
+      label: "Sắp diễn ra",
+      className: "bg-blue-50 text-blue-700 border-blue-300",
+    },
+    {
+      key: "ACTIVE",
+      label: "Đang diễn ra",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-300",
+    },
+  ];
 
-  const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0)
+  const totalCount =
+    meta?.totalElements ??
+    Object.values(statusCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -118,8 +158,11 @@ export default function SessionsPage() {
             {/* Status Tabs */}
             <div className="flex flex-wrap gap-2">
               {statusOptions.map((status) => {
-                const count = status.key === '' ? totalCount : (statusCounts[status.key] || 0)
-                const showCount = true
+                const count =
+                  status.key === ""
+                    ? totalCount
+                    : statusCounts[status.key] || 0;
+                const showCount = true;
                 return (
                   <button
                     key={status.key}
@@ -127,33 +170,45 @@ export default function SessionsPage() {
                     className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
                       statusFilter === status.key
                         ? `${status.className} ring-2 ring-offset-1 ring-blue-300`
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     {status.label}
                     {showCount && (
-                      <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${statusFilter === status.key ? 'bg-white/50' : 'bg-gray-100'}`}>
+                      <span
+                        className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${statusFilter === status.key ? "bg-white/50" : "bg-gray-100"}`}
+                      >
                         {count}
                       </span>
                     )}
                   </button>
-                )
+                );
               })}
             </div>
 
-            <div className="text-sm text-gray-600">Đang hiển thị: chỉ phiên tăng dần (English)</div>
+            <div className="text-sm text-gray-600">
+              Đang hiển thị: chỉ phiên tăng dần (English)
+            </div>
           </div>
         </div>
 
-        {error && <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
+        {error && (
+          <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">
+            {error}
+          </div>
+        )}
 
         {loading ? (
           <SessionsListSkeleton count={size} />
         ) : sessions.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
-            <p className="text-gray-600 mb-2">Không có phiên nào phù hợp với bộ lọc.</p>
+            <p className="text-gray-600 mb-2">
+              Không có phiên nào phù hợp với bộ lọc.
+            </p>
             <button
-              onClick={() => { setStatusFilter('') }}
+              onClick={() => {
+                setStatusFilter("");
+              }}
               className="text-indigo-600 hover:underline text-sm"
             >
               Xóa bộ lọc
@@ -162,26 +217,38 @@ export default function SessionsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sessions.map((session) => {
-              const status = getStatusMeta(session.status)
-              const type = getTypeMeta(session.type)
-              const isActive = session.status === 'ACTIVE'
-              
+              const status = getStatusMeta(session.status);
+              const type = getTypeMeta(session.type);
+              const isActive = session.status === "ACTIVE";
+
               return (
                 <Link
                   key={session.id}
                   to={`/sessions/${session.id}`}
                   className={`group bg-white border rounded-2xl p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all ${
-                    isActive ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-gray-200'
+                    isActive
+                      ? "border-emerald-300 ring-1 ring-emerald-100"
+                      : "border-gray-200"
                   }`}
                 >
                   {/* Status & Type Badges */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2">
-                      <span className={`text-lg ${type.color}`}>{type.icon}</span>
-                      <span className="text-sm font-medium text-gray-700">{type.label}</span>
+                      <span className={`text-lg ${type.color}`}>
+                        {type.icon}
+                      </span>
+                      <span className="text-sm font-medium text-gray-700">
+                        {type.label}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full border ${status.className}`}>
-                      {isActive && <span className={`inline-block w-1.5 h-1.5 rounded-full ${status.dot} mr-1.5 animate-pulse`} />}
+                    <span
+                      className={`text-xs px-2.5 py-1 rounded-full border ${status.className}`}
+                    >
+                      {isActive && (
+                        <span
+                          className={`inline-block w-1.5 h-1.5 rounded-full ${status.dot} mr-1.5 animate-pulse`}
+                        />
+                      )}
                       {status.label}
                     </span>
                   </div>
@@ -194,10 +261,25 @@ export default function SessionsPage() {
                   {/* Time Info */}
                   <div className="mt-4 space-y-2 text-sm text-slate-600">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-4 h-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                       </svg>
-                      <span>Bắt đầu: <span className="font-medium text-slate-800">{formatDateTime(session.startTime)}</span></span>
+                      <span>
+                        Bắt đầu:{" "}
+                        <span className="font-medium text-slate-800">
+                          {formatDateTime(session.startTime)}
+                        </span>
+                      </span>
                     </div>
                   </div>
 
@@ -213,7 +295,7 @@ export default function SessionsPage() {
                     )}
                   </div>
                 </Link>
-              )
+              );
             })}
           </div>
         )}
@@ -232,8 +314,8 @@ export default function SessionsPage() {
                     disabled={loading}
                     className={`px-3 py-1 text-sm rounded-lg transition ${
                       size === option
-                        ? 'bg-indigo-600 text-white font-medium'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? "bg-indigo-600 text-white font-medium"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {option}
@@ -242,11 +324,12 @@ export default function SessionsPage() {
               </div>
               <span className="text-sm text-gray-600">/ trang</span>
             </div>
-            
+
             <p className="text-sm text-gray-600">
-              Trang {page + 1} / {Math.max(meta.totalPages || 1, 1)} — {meta.totalElements || 0} phiên
+              Trang {page + 1} / {Math.max(meta.totalPages || 1, 1)} —{" "}
+              {meta.totalElements || 0} phiên
             </p>
-            
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -261,7 +344,9 @@ export default function SessionsPage() {
               </span>
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.min((meta.totalPages || 1) - 1, p + 1))}
+                onClick={() =>
+                  setPage((p) => Math.min((meta.totalPages || 1) - 1, p + 1))
+                }
                 disabled={page >= (meta.totalPages || 1) - 1 || loading}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
@@ -272,5 +357,5 @@ export default function SessionsPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

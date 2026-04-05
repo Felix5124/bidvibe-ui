@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { confirmReceipt, deleteRejectedItem, getInventory } from "../api/items";
-import { createListing } from "../api/market";
+import {
+  createListing,
+  getMyActiveListings,
+  updateListingPrice,
+} from "../api/market";
 import { ItemsListSkeleton } from "../components/Skeleton";
 import PageHeaderFrame from "../components/PageHeaderFrame";
 import { formatRarity } from "../utils/rarity";
@@ -47,17 +51,36 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [marketPriceById, setMarketPriceById] = useState({});
+  const [activeListingsByItemId, setActiveListingsByItemId] = useState({});
   const [processingId, setProcessingId] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadInventory = useCallback(
     async (targetPage) => {
       setLoading(true);
       setError(null);
       try {
-        const response = await getInventory(targetPage, size);
-        const payload = readApiData(response);
+        const [inventoryRes, activeListingsRes] = await Promise.all([
+          getInventory(targetPage, size),
+          getMyActiveListings(),
+        ]);
+
+        const payload = readApiData(inventoryRes);
+        const activeListings = readApiData(activeListingsRes) || [];
+        const listingMap = {};
+        activeListings.forEach((listing) => {
+          const itemId = listing?.item?.id;
+          if (itemId) listingMap[itemId] = listing;
+        });
+
         setItems(payload?.content || []);
         setMeta(payload?.meta || null);
+        setActiveListingsByItemId(listingMap);
       } catch (err) {
         console.error("[InventoryPage] Failed to load inventory", err);
         setError(err?.response?.data?.message || "Không tải được kho đồ.");
@@ -83,6 +106,32 @@ export default function InventoryPage() {
       toast.error(
         err?.response?.data?.message || "Xác nhận nhận hàng thất bại.",
       );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUpdateListingPrice = async (itemId) => {
+    const listing = activeListingsByItemId[itemId];
+    if (!listing?.id) {
+      toast.warning("Không tìm thấy tin đăng để cập nhật giá.");
+      return;
+    }
+
+    const askingPrice = Number(marketPriceById[itemId]);
+    if (!Number.isFinite(askingPrice) || askingPrice <= 0) {
+      toast.warning("Giá niêm yết phải lớn hơn 0.");
+      return;
+    }
+
+    setProcessingId(itemId);
+    try {
+      await updateListingPrice(listing.id, askingPrice);
+      toast.success("Đã cập nhật giá tin đăng.");
+      await loadInventory(page);
+    } catch (err) {
+      console.error("[InventoryPage] Failed to update listing price", err);
+      toast.error(err?.response?.data?.message || "Cập nhật giá thất bại.");
     } finally {
       setProcessingId(null);
     }
@@ -173,6 +222,15 @@ export default function InventoryPage() {
                 color: "bg-gray-100 text-gray-800",
               };
               const isReadyInInventory = productStatus === "IN_INVENTORY";
+              const activeListing = productId
+                ? activeListingsByItemId[productId]
+                : null;
+              const hasActiveListing = Boolean(activeListing?.id);
+              const unlockTime = activeListing?.createdAt
+                ? new Date(activeListing.createdAt).getTime() +
+                  12 * 60 * 60 * 1000
+                : null;
+              const isPriceUnlocked = unlockTime != null && now >= unlockTime;
 
               return (
                 <div
@@ -235,7 +293,7 @@ export default function InventoryPage() {
                     >
                       Chi tiết sản phẩm
                     </Link>
-                    {isReadyInInventory && (
+                    {isReadyInInventory && !hasActiveListing && (
                       <button
                         type="button"
                         onClick={() => handleConfirmReceipt(productId)}
@@ -258,7 +316,7 @@ export default function InventoryPage() {
                   </div>
 
                   {/* FORM BÁN CHỢ ĐEN (Chỉ hiện khi item đã vào kho) */}
-                  {isReadyInInventory && (
+                  {isReadyInInventory && !hasActiveListing && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <label className="text-xs font-semibold text-gray-700 block mb-2 uppercase tracking-wide">
                         Đăng bán lên Chợ Đen
@@ -285,6 +343,55 @@ export default function InventoryPage() {
                           className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
                         >
                           Bán
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isReadyInInventory && hasActiveListing && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <label className="text-xs font-semibold text-gray-700 block mb-2 uppercase tracking-wide">
+                        Tin đăng đang hoạt động
+                      </label>
+                      <p className="text-sm text-gray-700 mb-2">
+                        Giá hiện tại:{" "}
+                        <span className="font-semibold text-emerald-700">
+                          {Number(activeListing.askingPrice).toLocaleString(
+                            "vi-VN",
+                          )}{" "}
+                          VND
+                        </span>
+                      </p>
+                      {!isPriceUnlocked && unlockTime != null && (
+                        <p className="text-xs text-amber-700 mb-2">
+                          Giá đang bị khóa sau khi đăng bán. Có thể sửa từ:{" "}
+                          {new Date(unlockTime).toLocaleString("vi-VN")}
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={marketPriceById[productId] || ""}
+                          onChange={(e) =>
+                            setMarketPrice(productId, e.target.value)
+                          }
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Giá mới (VND)"
+                          disabled={!isPriceUnlocked}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateListingPrice(productId)}
+                          disabled={
+                            isProcessing ||
+                            !productId ||
+                            !marketPriceById[productId] ||
+                            !isPriceUnlocked
+                          }
+                          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                        >
+                          Cập nhật giá
                         </button>
                       </div>
                     </div>
