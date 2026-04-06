@@ -793,13 +793,7 @@ export default function AuctionRoomPage() {
                               ? "text-amber-700"
                               : "text-emerald-700"
                         }`}
-                      >
-                        {isCriticalEnding
-                          ? "Sap chot gia"
-                          : isEndingSoon
-                            ? "Sap het thoi gian"
-                            : "Dang cap nhat realtime"}
-                      </p>
+                      ></p>
                     )}
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">

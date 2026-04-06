@@ -185,10 +185,6 @@ export default function SessionsPage() {
                 );
               })}
             </div>
-
-            <div className="text-sm text-gray-600">
-              Đang hiển thị: chỉ phiên tăng dần (English)
-            </div>
           </div>
         </div>
 

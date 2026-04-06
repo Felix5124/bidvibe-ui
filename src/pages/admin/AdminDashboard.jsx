@@ -72,17 +72,11 @@ const toTimeMs = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const sortNewestFirst = (list, candidateKeys) => {
+const sortByCreatedAtDesc = (list) => {
   if (!Array.isArray(list)) return [];
   return [...list].sort((a, b) => {
-    const aTime = candidateKeys.reduce(
-      (acc, key) => acc || toTimeMs(a?.[key]),
-      0,
-    );
-    const bTime = candidateKeys.reduce(
-      (acc, key) => acc || toTimeMs(b?.[key]),
-      0,
-    );
+    const aTime = toTimeMs(a?.createdAt);
+    const bTime = toTimeMs(b?.createdAt);
     return bTime - aTime;
   });
 };
@@ -520,47 +514,22 @@ export default function AdminDashboard() {
     });
   }, [approvedItems, approvedItemsKeyword]);
 
-  const sortedItems = useMemo(
-    () =>
-      sortNewestFirst(items, [
-        "createdAt",
-        "updatedAt",
-        "approvedAt",
-        "submittedAt",
-      ]),
-    [items],
-  );
+  const sortedUsers = useMemo(() => sortByCreatedAtDesc(users), [users]);
+
+  const sortedItems = useMemo(() => sortByCreatedAtDesc(items), [items]);
 
   const sortedTransactions = useMemo(
-    () =>
-      sortNewestFirst(transactions, [
-        "createdAt",
-        "updatedAt",
-        "completedAt",
-        "transactionTime",
-      ]),
+    () => sortByCreatedAtDesc(transactions),
     [transactions],
   );
 
   const sortedSessions = useMemo(
-    () =>
-      sortNewestFirst(sessions, [
-        "createdAt",
-        "updatedAt",
-        "startTime",
-        "endTime",
-      ]),
+    () => sortByCreatedAtDesc(sessions),
     [sessions],
   );
 
   const sortedFilteredApprovedItems = useMemo(
-    () =>
-      sortNewestFirst(filteredApprovedItems, [
-        "createdAt",
-        "updatedAt",
-        "approvedAt",
-        "submittedAt",
-      ]),
+    () => sortByCreatedAtDesc(filteredApprovedItems),
     [filteredApprovedItems],
   );
 
@@ -697,7 +666,7 @@ export default function AdminDashboard() {
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h2 className="text-xl font-semibold mb-4">Quản lý người dùng</h2>
       <div className="space-y-3">
-        {users.map((u) => (
+        {sortedUsers.map((u) => (
           <div
             key={u.id}
             className="border border-gray-200 rounded p-4 flex flex-col gap-3"
@@ -1383,9 +1352,9 @@ export default function AdminDashboard() {
             }
             className="px-3 py-2 border border-gray-300 rounded"
           >
-            <option value="ENGLISH">English (Lên giá)</option>
-            <option value="DUTCH">Dutch (Xuống giá)</option>
-            <option value="SEALED">Sealed Bid (Kín)</option>
+            <option value="ENGLISH">Tăng dần</option>
+            <option value="DUTCH">Giảm dần</option>
+            <option value="SEALED">Kín</option>
           </select>
           <input
             type="datetime-local"
@@ -1639,13 +1608,6 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-wrap gap-2 shrink-0">
                           <button
-                            onClick={() => handleLoadAuctionBids(auction.id)}
-                            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={isProcessingAction}
-                          >
-                            Lịch sử giá
-                          </button>
-                          <button
                             onClick={async () => {
                               setIsProcessingAction(true);
                               try {
@@ -1675,68 +1637,6 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                       </div>
-
-                      {/* KHU VỰC HIỂN THỊ BIDS (Chỉ hiện khi bấm tải lịch sử giá) */}
-                      {Array.isArray(auctionBidsByAuction[auction.id]) && (
-                        <div className="border-t border-slate-100 bg-slate-50 p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h5 className="text-sm font-bold text-slate-700">
-                              Lịch sử trả giá (
-                              {auctionBidsByAuction[auction.id].length})
-                            </h5>
-                            <button
-                              onClick={() =>
-                                setAuctionBidsByAuction((prev) => ({
-                                  ...prev,
-                                  [auction.id]: null,
-                                }))
-                              }
-                              className="text-xs text-slate-500 hover:text-slate-700 underline"
-                            >
-                              Đóng
-                            </button>
-                          </div>
-                          {auctionBidsByAuction[auction.id].length === 0 ? (
-                            <p className="text-sm text-slate-500 italic">
-                              Chưa có ai trả giá.
-                            </p>
-                          ) : (
-                            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                              {auctionBidsByAuction[auction.id].map((bid) => (
-                                <div
-                                  key={bid.id}
-                                  className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-slate-800">
-                                      {bid.bidder?.nickname || "Ẩn danh"}
-                                    </span>
-                                    {bid.proxy && (
-                                      <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
-                                        Auto
-                                      </span>
-                                    )}
-                                    <span className="text-slate-400 mx-1">
-                                      -
-                                    </span>
-                                    <span className="font-bold text-emerald-600">
-                                      {formatVnd(bid.amount)}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() =>
-                                      handleRemoveBid(auction.id, bid.id)
-                                    }
-                                    className="px-2.5 py-1 rounded-md bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-medium transition-colors"
-                                  >
-                                    Xóa lượt giá
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1854,31 +1754,14 @@ export default function AdminDashboard() {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
-                            Giá sàn (Dutch)
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={addAuctionForm.minPrice}
-                            onChange={(e) =>
-                              setAddAuctionForm((p) => ({
-                                ...p,
-                                minPrice: e.target.value,
-                              }))
-                            }
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                          />
-                        </div>
+                      <div className="w-full">
                         <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2">
                           <p className="text-[11px] font-bold uppercase text-indigo-700">
-                            Thời gian English
+                            Thời gian đấu giá
                           </p>
                           <p className="text-xs text-indigo-700 mt-1">
                             Cố định {ENGLISH_AUCTION_MINUTES} phút cho mỗi vật
-                            phẩm, không chỉnh tay.
+                            phẩm.
                           </p>
                         </div>
                       </div>
@@ -2169,12 +2052,6 @@ export default function AdminDashboard() {
             >
               Phiên
             </button>
-            <button
-              onClick={() => setTab("market")}
-              className={`px-3 py-2 rounded text-sm ${tab === "market" ? "bg-blue-600 text-white" : "bg-white border border-gray-300"}`}
-            >
-              Tranh chấp chợ đen
-            </button>
           </div>
 
           {renderTabContent()}
@@ -2337,68 +2214,6 @@ export default function AdminDashboard() {
                         </label>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-700 whitespace-pre-wrap min-h-30">
                           {selectedItemDetail.description || "Không có mô tả"}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Thông tin bổ sung
-                        </label>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-700">
-                          {selectedItemDetail.additionalInfo ||
-                            "Không có thông tin bổ sung"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tags và phân loại */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5">
-                    <h4 className="font-bold text-slate-800 mb-3">Phân loại</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Tags
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedItemDetail.tags &&
-                          selectedItemDetail.tags.length > 0 ? (
-                            selectedItemDetail.tags.map((tag, index) => (
-                              <span
-                                key={index}
-                                className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full border border-blue-200"
-                              >
-                                {tag}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-500 text-sm">
-                              Không có tags
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Danh mục
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedItemDetail.categories &&
-                          selectedItemDetail.categories.length > 0 ? (
-                            selectedItemDetail.categories.map(
-                              (category, index) => (
-                                <span
-                                  key={index}
-                                  className="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full border border-purple-200"
-                                >
-                                  {category}
-                                </span>
-                              ),
-                            )
-                          ) : (
-                            <span className="text-slate-500 text-sm">
-                              Không có danh mục
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
