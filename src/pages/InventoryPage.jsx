@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
-import { confirmReceipt, deleteRejectedItem, getInventory } from "../api/items";
+import {
+  confirmReceipt,
+  deleteRejectedItem,
+  getInventory,
+  requestShipping,
+} from "../api/items";
 import {
   createListing,
   getMyActiveListings,
@@ -29,11 +34,19 @@ const STATUS_MAP = {
     color: "bg-purple-100 text-purple-800 border-purple-200",
   },
   IN_INVENTORY: {
-    label: "Sẵn sàng trong kho",
+    label: "Trong kho",
     color: "bg-emerald-100 text-emerald-800 border-emerald-200",
   },
+  SHIPPING_REQUESTED: {
+    label: "Đang chờ xử lý",
+    color: "bg-amber-100 text-amber-800 border-amber-200",
+  },
+  SHIPPING_IN_PROGRESS: {
+    label: "Đang giao hàng",
+    color: "bg-sky-100 text-sky-800 border-sky-200",
+  },
   SHIPPED: {
-    label: "Đã nhận hàng",
+    label: "Đã giao hàng",
     color: "bg-gray-100 text-gray-800 border-gray-200",
   },
   REJECTED: {
@@ -94,6 +107,22 @@ export default function InventoryPage() {
   useEffect(() => {
     loadInventory(page);
   }, [loadInventory, page]);
+
+  const handleRequestShipping = async (itemId) => {
+    setProcessingId(itemId);
+    try {
+      await requestShipping(itemId);
+      toast.success("Đã gửi yêu cầu giao hàng.");
+      await loadInventory(page);
+    } catch (err) {
+      console.error("[InventoryPage] Failed to request shipping", err);
+      toast.error(
+        err?.response?.data?.message || "Yêu cầu giao hàng thất bại.",
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const handleConfirmReceipt = async (itemId) => {
     setProcessingId(itemId);
@@ -212,7 +241,6 @@ export default function InventoryPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map((item) => {
-              // Some payloads may wrap the product as `item`; always resolve real product first.
               const product = item?.item || item;
               const productId = product?.id || item?.id;
               const productStatus = product?.status || item?.status;
@@ -221,7 +249,13 @@ export default function InventoryPage() {
                 label: productStatus,
                 color: "bg-gray-100 text-gray-800",
               };
+
               const isReadyInInventory = productStatus === "IN_INVENTORY";
+              const isShippingRequested =
+                productStatus === "SHIPPING_REQUESTED";
+              const isShippingInProgress =
+                productStatus === "SHIPPING_IN_PROGRESS";
+
               const activeListing = productId
                 ? activeListingsByItemId[productId]
                 : null;
@@ -248,7 +282,6 @@ export default function InventoryPage() {
                     </span>
                   </div>
 
-                  {/* Container bao quanh ảnh để cố định tỷ lệ */}
                   {product?.imageUrls && product.imageUrls.length > 0 && (
                     <div className="relative w-full aspect-[5/3] mb-4 overflow-hidden rounded-xl border border-gray-100 bg-gray-50 group">
                       <img
@@ -260,8 +293,6 @@ export default function InventoryPage() {
                             'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150" fill="%23f1f5f9"><rect width="200" height="150"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2394a3b8" text-anchor="middle" dy=".3em">Không tải được ảnh</text></svg>';
                         }}
                       />
-
-                      {/* Overlay nhẹ khi hover cho sang chảnh */}
                       <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                     </div>
                   )}
@@ -285,7 +316,6 @@ export default function InventoryPage() {
                       )}
                   </div>
 
-                  {/* NÚT ACTIONS CHUNG */}
                   <div className="flex gap-2 w-full mt-auto">
                     <Link
                       to={productId ? `/items/${productId}` : "/me/inventory"}
@@ -293,16 +323,39 @@ export default function InventoryPage() {
                     >
                       Chi tiết sản phẩm
                     </Link>
+
                     {isReadyInInventory && !hasActiveListing && (
+                      <button
+                        type="button"
+                        onClick={() => handleRequestShipping(productId)}
+                        disabled={isProcessing || !productId}
+                        className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-60 transition"
+                      >
+                        Yêu cầu giao hàng
+                      </button>
+                    )}
+
+                    {isShippingRequested && (
+                      <button
+                        type="button"
+                        disabled
+                        className="flex-1 py-2 rounded-lg bg-amber-100 text-amber-800 text-sm font-medium border border-amber-200 cursor-not-allowed"
+                      >
+                        Đang chờ xử lý
+                      </button>
+                    )}
+
+                    {isShippingInProgress && (
                       <button
                         type="button"
                         onClick={() => handleConfirmReceipt(productId)}
                         disabled={isProcessing || !productId}
                         className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition"
                       >
-                        Đã nhận hàng
+                        Đã nhận được hàng
                       </button>
                     )}
+
                     {productStatus === "REJECTED" && (
                       <button
                         type="button"
@@ -315,7 +368,6 @@ export default function InventoryPage() {
                     )}
                   </div>
 
-                  {/* FORM BÁN CHỢ ĐEN (Chỉ hiện khi item đã vào kho) */}
                   {isReadyInInventory && !hasActiveListing && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <label className="text-xs font-semibold text-gray-700 block mb-2 uppercase tracking-wide">
