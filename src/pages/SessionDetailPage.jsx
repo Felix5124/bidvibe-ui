@@ -199,7 +199,7 @@ export default function SessionDetailPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-slate-500">Số phòng đấu giá</p>
+                  <p className="text-slate-500">Số sản phẩm đấu giá</p>
                   <p className="font-semibold text-slate-800 mt-1">
                     {auctions.length}
                   </p>

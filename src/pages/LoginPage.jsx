@@ -121,11 +121,6 @@ export default function LoginPage() {
                   ? "Chào mừng bạn quay lại"
                   : "Đăng nhập vào BidVibe"}
               </h2>
-              <p className="mt-3 text-gray-500">
-                {isEmailMode
-                  ? "Nhập thông tin đăng nhập của bạn để truy cập tài khoản"
-                  : "Chọn phương thức đăng nhập"}
-              </p>
             </div>
 
             {!isEmailMode ? (
@@ -154,37 +149,6 @@ export default function LoginPage() {
                     />
                   </svg>
                   Tiếp tục với Google
-                </button>
-
-                <div className="relative py-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-gray-400 font-medium">
-                      or
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsEmailMode(true)}
-                  className="w-full flex items-center justify-center gap-3 cursor-pointer py-3.5 px-4 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all duration-200"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                  Tiếp tục với Email
                 </button>
               </div>
             ) : (
@@ -343,16 +307,6 @@ export default function LoginPage() {
                 <p className="text-sm text-red-600 font-medium">{error}</p>
               </div>
             )}
-
-            <p className="mt-8 text-center text-sm text-gray-600">
-              Tạo tài khoản?{" "}
-              <a
-                href="#"
-                className="text-indigo-600 hover:text-indigo-800 font-semibold transition-colors"
-              >
-                Đăng nhập miễn phí
-              </a>
-            </p>
           </div>
 
           <p className="mt-8 text-center text-sm text-gray-400">

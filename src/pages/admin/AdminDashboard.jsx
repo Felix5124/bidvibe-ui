@@ -1273,8 +1273,6 @@ export default function AdminDashboard() {
             >
               <option value="">Tất cả loại</option>
               <option value="ENGLISH">English</option>
-              <option value="DUTCH">Dutch</option>
-              <option value="SEALED">Sealed Bid</option>
             </select>
           </div>
         </div>
@@ -1332,7 +1330,7 @@ export default function AdminDashboard() {
                 }),
               { successMessage: "Đã tạo phiên đấu giá thành công." },
             );
-            setSessionForm({ title: "", type: "ENGLISH", startTime: "" });
+            setSessionForm({ title: "", type: "Tăng dần", startTime: "" });
           }}
           className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-2"
         >
