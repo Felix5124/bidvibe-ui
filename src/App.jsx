@@ -155,6 +155,14 @@ function App() {
             }
           />
           <Route
+            path="/sessions/:sessionId/room"
+            element={
+              <ProtectedRoute>
+                <AuctionRoomPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/market"
             element={
               <ProtectedRoute>

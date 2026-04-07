@@ -57,6 +57,8 @@ export const deleteRejectedItem = (itemId) => {
 export const listOnMarket = (data) => {
   return api.post('/items/list-on-market', data)
 }
+export const requestShipping = (id) =>
+  api.patch(`/items/${id}/request-shipping`);
 
 export default {
   submitItem,

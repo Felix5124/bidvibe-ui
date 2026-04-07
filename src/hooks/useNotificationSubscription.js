@@ -1,30 +1,32 @@
-import { useEffect, useRef } from 'react'
-import { useAuthStore } from '../store/authStore'
-import { useNotificationStore } from '../store/notificationStore'
-import { useToast } from '../context/ToastContext'
-import { createStompClient } from '../lib/stomp'
+import { useEffect, useRef } from "react";
+import { useAuthStore } from "../store/authStore";
+import { useNotificationStore } from "../store/notificationStore";
+import { useToast } from "../context/ToastContext";
+import { createStompClient } from "../lib/stomp";
+import { useNavigate } from "react-router-dom";
 
 export function useNotificationSubscription() {
-  const { user } = useAuthStore()
-  const { addNotification, incrementUnread } = useNotificationStore()
-  const { info: showInfoToast } = useToast()
-  const clientRef = useRef(null)
-  const hasConnectedRef = useRef(false)
+  const { user } = useAuthStore();
+  const { addNotification, incrementUnread } = useNotificationStore();
+  const { info: showInfoToast } = useToast();
+  const navigate = useNavigate();
+  const clientRef = useRef(null);
+  const hasConnectedRef = useRef(false);
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id) return;
 
     const client = createStompClient({
       onConnect: () => {
-        hasConnectedRef.current = true
-        console.log('[Notifications] WebSocket connected')
-        
+        hasConnectedRef.current = true;
+        console.log("[Notifications] WebSocket connected");
+
         // Subscribe to user-specific notification topic
         client.subscribe(`/topic/notification/${user.id}`, (message) => {
           try {
-            const payload = JSON.parse(message.body)
-            console.log('[Notifications] Received notification:', payload)
-            
+            const payload = JSON.parse(message.body);
+            console.log("[Notifications] Received notification:", payload);
+
             // Add to store
             addNotification({
               id: payload.notificationId || payload.id || crypto.randomUUID(),
@@ -34,38 +36,48 @@ export function useNotificationSubscription() {
               read: false,
               createdAt: payload.createdAt || new Date().toISOString(),
               referenceId: payload.referenceId,
-            })
-            
+            });
+
             // Increment unread count
-            incrementUnread()
-            
-            // Show toast notification
-            showInfoToast(payload.title, payload.content)
+            incrementUnread();
+
+            // Show toast notification. WATCHLIST_START can be clicked to jump to room.
+            if (payload?.type === "WATCHLIST_START" && payload?.referenceId) {
+              showInfoToast(payload.title, payload.content, 6000, {
+                actionLabel: "Nhấn để vào phòng đấu giá",
+                onClick: () => navigate(`/auctions/${payload.referenceId}`),
+              });
+            } else {
+              showInfoToast(payload.title, payload.content);
+            }
           } catch (err) {
-            console.error('[Notifications] Failed to parse notification:', err)
+            console.error("[Notifications] Failed to parse notification:", err);
           }
-        })
+        });
       },
       onStompError: (frame) => {
-        console.error('[Notifications] STOMP error:', frame)
+        console.error("[Notifications] STOMP error:", frame);
       },
       onWebSocketError: (event) => {
         // SockJS can emit transient errors before the first successful handshake.
         if (!hasConnectedRef.current) {
-          return
+          return;
         }
-        console.warn('[Notifications] WebSocket unstable, waiting for reconnect:', event)
+        console.warn(
+          "[Notifications] WebSocket unstable, waiting for reconnect:",
+          event,
+        );
       },
-    })
+    });
 
-    clientRef.current = client
+    clientRef.current = client;
 
     return () => {
       if (clientRef.current) {
-        clientRef.current.deactivate()
-        clientRef.current = null
+        clientRef.current.deactivate();
+        clientRef.current = null;
       }
-      hasConnectedRef.current = false
-    }
-  }, [user?.id, addNotification, incrementUnread, showInfoToast])
+      hasConnectedRef.current = false;
+    };
+  }, [user?.id, addNotification, incrementUnread, navigate, showInfoToast]);
 }

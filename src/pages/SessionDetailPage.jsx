@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getSession } from "../api/sessions";
 import { getAuctionsBySession } from "../api/auctions";
+import { getWatchlist, toggleWatchlist } from "../api/users";
 import PageHeaderFrame from "../components/PageHeaderFrame";
 
 const readApiData = (response) =>
@@ -15,6 +16,14 @@ const STATUS_META = {
   ACTIVE: {
     label: "Đang diễn ra",
     className: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  },
+  WAITING: {
+    label: "Chờ đến lượt",
+    className: "bg-blue-100 text-blue-700 border-blue-200",
+  },
+  ENDED: {
+    label: "Đã đấu giá xong",
+    className: "bg-zinc-100 text-zinc-700 border-zinc-200",
   },
   PAUSED: {
     label: "Tạm đóng",
@@ -40,6 +49,7 @@ export default function SessionDetailPage() {
   const { id } = useParams();
   const [session, setSession] = useState(null);
   const [auctions, setAuctions] = useState([]);
+  const [watchingIds, setWatchingIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -63,11 +73,42 @@ export default function SessionDetailPage() {
     }
   }, [id]);
 
+  const loadWatchlist = useCallback(async () => {
+    try {
+      const response = await getWatchlist(0, 500);
+      const payload = readApiData(response);
+      const items = Array.isArray(payload?.content) ? payload.content : [];
+      setWatchingIds(new Set(items.map((item) => item.id)));
+    } catch {
+      setWatchingIds(new Set());
+    }
+  }, []);
+
   useEffect(() => {
     if (id) {
       loadData();
+      loadWatchlist();
     }
-  }, [id, loadData]);
+  }, [id, loadData, loadWatchlist]);
+
+  const handleToggleWatch = async (itemId) => {
+    try {
+      await toggleWatchlist(itemId);
+      setWatchingIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(itemId)) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+        }
+        return next;
+      });
+    } catch (err) {
+      setError(
+        err?.response?.data?.message || "Không thể cập nhật theo dõi vật phẩm.",
+      );
+    }
+  };
 
   const formatVnd = (value) => {
     if (value == null) return "-";
@@ -85,6 +126,9 @@ export default function SessionDetailPage() {
       className: "bg-gray-100 text-gray-700 border-gray-200",
     };
   const getTypeLabel = (type) => TYPE_LABEL[type] || type || "-";
+  const activeAuctionId = auctions.find(
+    (auction) => auction.status === "ACTIVE",
+  )?.id;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -93,12 +137,20 @@ export default function SessionDetailPage() {
           title="Chi tiết phiên đấu giá"
           description="Theo dõi trong phiên để biết rõ các sản phẩm đang được đấu giá."
           actions={
-            <Link
-              to="/sessions"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium"
-            >
-              Về danh sách phiên
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to={`/sessions/${id}/room`}
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium"
+              >
+                Vào phòng đấu giá của phiên
+              </Link>
+              <Link
+                to="/sessions"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-colors font-medium"
+              >
+                Về danh sách phiên
+              </Link>
+            </div>
           }
         />
 
@@ -147,7 +199,7 @@ export default function SessionDetailPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-slate-500">Số phòng đấu giá</p>
+                  <p className="text-slate-500">Số sản phẩm đấu giá</p>
                   <p className="font-semibold text-slate-800 mt-1">
                     {auctions.length}
                   </p>
@@ -169,25 +221,53 @@ export default function SessionDetailPage() {
                   {auctions.map((auction) => (
                     <div
                       key={auction.id}
-                      className="border border-gray-200 rounded-xl p-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+                      className="border border-gray-200 rounded-xl p-4"
                     >
-                      <div>
-                        <p className="font-medium text-slate-900">
-                          {auction.item?.name || "Vật phẩm chưa đặt tên"}
-                        </p>
-                        <p className="text-sm text-slate-700 mt-1">
-                          Trạng thái: {getStatusMeta(auction.status).label}
-                        </p>
-                        <p className="text-sm text-slate-700 mt-1">
-                          Giá hiện tại: {formatVnd(auction.currentPrice)}
-                        </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {auction.item?.name || "V?t ph?m chua d?t t�n"}
+                          </p>
+                          <p className="text-sm text-slate-700 mt-1">
+                            Trạng thái: {getStatusMeta(auction.status).label}
+                          </p>
+                          <p className="text-sm text-slate-700 mt-1">
+                            Giá hiện tại: {formatVnd(auction.currentPrice)}
+                          </p>
+                          {auction.id === activeAuctionId && (
+                            <p className="text-xs mt-2 inline-flex px-2 py-1 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              Vật phẩm đang được đấu giá hiện tại
+                            </p>
+                          )}
+                          {(auction.status === "WAITING" ||
+                            auction.status === "SCHEDULED") && (
+                            <p className="text-xs mt-2 inline-flex px-2 py-1 rounded bg-blue-100 text-blue-700 border border-blue-200">
+                              Chưa tới lượt đấu giá
+                            </p>
+                          )}
+                          <p className="text-xs text-slate-500 mt-2">
+                            Người dùng chỉ vào một phòng của phiên, hệ thống sẽ
+                            tự chuyển vật phẩm theo thứ tự.
+                          </p>
+                        </div>
+                        {(auction.status === "WAITING" ||
+                          auction.status === "SCHEDULED") &&
+                          auction.item?.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleWatch(auction.item.id)}
+                              className={`px-3 py-1.5 rounded-lg text-sm border ${
+                                watchingIds.has(auction.item.id)
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-white text-slate-700 border-slate-300"
+                              }`}
+                            >
+                              {watchingIds.has(auction.item.id)
+                                ? "Đã theo dõi"
+                                : "Theo dõi"}
+                            </button>
+                          )}
                       </div>
-                      <Link
-                        to={`/auctions/${auction.id}`}
-                        className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm text-center"
-                      >
-                        Vào phòng đấu giá
-                      </Link>
                     </div>
                   ))}
                 </div>
