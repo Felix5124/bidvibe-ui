@@ -65,6 +65,18 @@ export default function MarketDetailPage() {
     setActiveImage(0);
   }, [listingId]);
 
+  const handlePrevImage = () => {
+    if (productImages.length < 2) return;
+    setActiveImage(
+      (prev) => (prev - 1 + productImages.length) % productImages.length,
+    );
+  };
+
+  const handleNextImage = () => {
+    if (productImages.length < 2) return;
+    setActiveImage((prev) => (prev + 1) % productImages.length);
+  };
+
   // Buy current listing at asking price.
   const handleBuy = async () => {
     try {
@@ -129,40 +141,53 @@ export default function MarketDetailPage() {
                   <p>Seller: {listing.seller?.nickname || "-"}</p>
                   <p>Phân loại: {formatRarity(listing.item?.rarity)}</p>
                   <p>
-                    Gia niem yet:{" "}
+                    Giá:{" "}
                     <span className="font-semibold text-emerald-700">
                       {formatVND(listing.askingPrice)}
                     </span>
                   </p>
-                  <p>Buyer: {listing.buyer?.nickname || "-"}</p>
                 </div>
 
                 <div className="mt-5">
                   {productImages.length > 0 ? (
                     <>
-                      <div className="overflow-hidden h-100 w-100 rounded-xl border border-gray-200 bg-gray-50 mx-auto">
+                      <div className="relative overflow-hidden h-130 w-130 rounded-xl border border-gray-200 bg-gray-50 mx-auto">
                         <img
                           src={productImages[activeImage]}
                           alt={listing.item?.name || "Ảnh vật phẩm"}
-                          className="h-100 w-100 object-cover"
+                          className="h-full w-full object-cover"
                         />
+
+                        {productImages.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handlePrevImage}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-slate-800 border border-slate-200 shadow hover:bg-white"
+                              aria-label="Ảnh trước"
+                            >
+                              <span className="text-xl leading-none">
+                                &#8592;
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleNextImage}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-slate-800 border border-slate-200 shadow hover:bg-white"
+                              aria-label="Ảnh sau"
+                            >
+                              <span className="text-xl leading-none">
+                                &#8594;
+                              </span>
+                            </button>
+                          </>
+                        )}
                       </div>
                       {productImages.length > 1 && (
-                        <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                          {productImages.map((url, index) => (
-                            <button
-                              key={`${url}-${index}`}
-                              type="button"
-                              onClick={() => setActiveImage(index)}
-                              className={`overflow-hidden rounded-lg border ${activeImage === index ? "border-emerald-500 ring-2 ring-emerald-200" : "border-gray-200"}`}
-                            >
-                              <img
-                                src={url}
-                                alt={`Thumbnail ${index + 1}`}
-                                className="h-100 w-100 object-cover"
-                              />
-                            </button>
-                          ))}
+                        <div className="mt-2 flex items-center justify-center gap-2">
+                          <span className="text-xs text-slate-600">
+                            {activeImage + 1}/{productImages.length}
+                          </span>
                         </div>
                       )}
                     </>
@@ -173,24 +198,28 @@ export default function MarketDetailPage() {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleBuy}
-                  disabled={listing.status !== "ACTIVE"}
-                  className="mt-5 px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  Mua ngay
-                </button>
-
-                {isSeller && (
-                  <button
-                    type="button"
-                    onClick={handleCancelListing}
-                    disabled={listing.status !== "ACTIVE"}
-                    className="mt-3 ml-3 px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
-                  >
-                    Hủy listing
-                  </button>
+                {isSeller ? (
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleCancelListing}
+                      disabled={listing.status !== "ACTIVE"}
+                      className="mt-3 ml-3 px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                    >
+                      Hủy listing
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleBuy}
+                      disabled={listing.status !== "ACTIVE"}
+                      className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      Mua ngay
+                    </button>
+                  </div>
                 )}
 
                 {/* Rate seller section - shown to buyer after purchase */}

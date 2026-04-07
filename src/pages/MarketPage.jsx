@@ -1,15 +1,21 @@
-﻿import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { searchListings } from "../api/market";
 import { MarketListingsSkeleton } from "../components/Skeleton";
-import PageHeaderFrame from '../components/PageHeaderFrame'
-import { RARITY_OPTIONS, formatRarity } from '../utils/rarity'
+import PageHeaderFrame from "../components/PageHeaderFrame";
+import { RARITY_OPTIONS, formatRarity } from "../utils/rarity";
 
 const readApiData = (response) =>
   response?.data?.data ?? response?.data ?? null;
+const getFirstItemImage = (listing) => {
+  const imageUrls = listing?.item?.imageUrls || listing?.item?.image_urls;
+  if (!Array.isArray(imageUrls) || imageUrls.length === 0) return null;
+  return imageUrls[0] || null;
+};
 
 export default function MarketPage() {
   const [filters, setFilters] = useState({ keyword: "", rarity: "" });
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [listings, setListings] = useState([]);
   const [meta, setMeta] = useState(null);
   const [page, setPage] = useState(0);
@@ -48,14 +54,30 @@ export default function MarketPage() {
   );
 
   useEffect(() => {
-    loadListings(page, filters);
-  }, [filters, loadListings, page]);
+    const timer = setTimeout(() => {
+      setDebouncedKeyword(filters.keyword);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filters.keyword]);
+
+  const effectiveFilters = useMemo(
+    () => ({
+      ...filters,
+      keyword: debouncedKeyword,
+    }),
+    [filters, debouncedKeyword],
+  );
+
+  useEffect(() => {
+    loadListings(page, effectiveFilters);
+  }, [effectiveFilters, loadListings, page]);
 
   // Trigger search with current filter values.
   const onSearch = (event) => {
     event.preventDefault();
     setPage(0);
-    loadListings(0, filters);
+    setDebouncedKeyword(filters.keyword);
   };
 
   const formatVnd = (value) => {
@@ -77,17 +99,19 @@ export default function MarketPage() {
         >
           <input
             value={filters.keyword}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, keyword: e.target.value }))
-            }
+            onChange={(e) => {
+              setPage(0);
+              setFilters((prev) => ({ ...prev, keyword: e.target.value }));
+            }}
             placeholder="Tìm theo tên vật phẩm"
             className="px-3 py-2 border border-gray-300 rounded-md md:col-span-2"
           />
           <select
             value={filters.rarity}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, rarity: e.target.value }))
-            }
+            onChange={(e) => {
+              setPage(0);
+              setFilters((prev) => ({ ...prev, rarity: e.target.value }));
+            }}
             className="px-3 py-2 border border-gray-300 rounded-md"
           >
             <option value="">Tất cả phân loại</option>
@@ -119,34 +143,69 @@ export default function MarketPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {listings.map((listing) => (
-              <Link
-                key={listing.id}
-                to={`/market/${listing.id}`}
-                className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {listing.item?.name || "Vật phẩm chưa đặt tên"}
-                  </h2>
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                    {listing.status}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  {listing.item?.description || "Không có mo ta."}
-                </p>
-                <div className="mt-3 text-sm text-gray-700">
-                  Người bán: {listing.seller?.nickname || "-"}
-                </div>
-                <div className="mt-1 text-sm text-gray-700">
-                  Phân loại: {formatRarity(listing.item?.rarity)}
-                </div>
-                <div className="mt-3 text-xl font-bold text-emerald-700">
-                  {formatVnd(listing.askingPrice)}
-                </div>
-              </Link>
-            ))}
+            {listings.map((listing) => {
+              const imageUrl = getFirstItemImage(listing);
+              return (
+                <Link
+                  key={listing.id}
+                  to={`/market/${listing.id}`}
+                  className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col"
+                >
+                  <div className="mb-4 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 aspect-4/3">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={listing.item?.name || "Ảnh vật phẩm"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-sm text-gray-500">
+                        Chưa có ảnh
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3">
+                    <h2
+                      className="text-lg font-semibold text-gray-900 flex-1 leading-7 min-h-7"
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {listing.item?.name || "Vật phẩm chưa đặt tên"}
+                    </h2>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {listing.status}
+                    </span>
+                  </div>
+                  <p
+                    className="text-sm text-gray-600 mt-2 min-h-12 leading-6"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {listing.item?.description || "Không có mo ta."}
+                  </p>
+                  <div className="mt-3 space-y-1 text-sm text-gray-700">
+                    <p className="leading-6 min-h-6">
+                      Người bán: {listing.seller?.nickname || "-"}
+                    </p>
+                    <p className="leading-6 min-h-6">
+                      Phân loại: {formatRarity(listing.item?.rarity)}
+                    </p>
+                  </div>
+                  <div className="mt-auto pt-3 text-xl font-bold text-emerald-700">
+                    {formatVnd(listing.askingPrice)}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
@@ -163,7 +222,7 @@ export default function MarketPage() {
                 disabled={page === 0}
                 className="px-3 py-2 border border-gray-300 rounded text-sm disabled:opacity-60"
               >
-               Trước
+                Trước
               </button>
               <button
                 type="button"

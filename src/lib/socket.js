@@ -1,12 +1,14 @@
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 let socketInstance = null;
 let socketToken = null;
 
 const getCurrentToken = () => {
-  return sessionStorage.getItem('sb_jwt') || sessionStorage.getItem('authToken');
+  return (
+    sessionStorage.getItem("sb_jwt") || sessionStorage.getItem("authToken")
+  );
 };
 
 export const getSocket = () => {
@@ -28,7 +30,7 @@ export const getSocket = () => {
   socketToken = token;
   socketInstance = io(API_URL, {
     auth: { token },
-    transports: ['websocket', 'polling'],
+    transports: ["websocket", "polling"],
   });
 
   return socketInstance;

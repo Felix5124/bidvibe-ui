@@ -6,6 +6,20 @@ import { getUnreadCount } from "../api/notifications";
 
 const navLinkClass = ({ isActive }) =>
   `font-medium transition-colors ${isActive ? "text-blue-700" : "text-gray-700 hover:text-blue-600"}`;
+const readApiData = (response) =>
+  response?.data?.data ?? response?.data ?? null;
+const readUnreadCount = (payload) => {
+  if (typeof payload === "number")
+    return Number.isFinite(payload) ? payload : 0;
+  if (payload && typeof payload === "object") {
+    const parsed = Number(
+      payload.count ?? payload.unreadCount ?? payload.unread ?? 0,
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  const parsed = Number(payload);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 export default function AppNavbar() {
   const { user, logout } = useAuthStore();
@@ -39,8 +53,7 @@ export default function AppNavbar() {
     const fetchUnread = async () => {
       try {
         const response = await getUnreadCount();
-        const count = response?.data?.data ?? response?.data ?? 0;
-        setUnreadCount(Number(count));
+        setUnreadCount(readUnreadCount(readApiData(response)));
       } catch (err) {
         console.error("[AppNavbar] Failed to fetch unread count", err);
       }

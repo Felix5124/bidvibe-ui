@@ -11,40 +11,6 @@
 
 import api from "./baseApi";
 
-<<<<<<< HEAD
-const normalizeListing = (listing = {}) => ({
-  ...listing,
-  askingPrice: Number(listing.askingPrice ?? listing.asking_price ?? 0),
-  createdAt: listing.createdAt ?? listing.created_at,
-  updatedAt: listing.updatedAt ?? listing.updated_at,
-  item: listing.item ?? {
-    id: listing.item_id,
-    name: listing.item_name,
-    description: listing.item_description,
-    imageUrls: listing.item_images ?? [],
-    rarity: listing.item_rarity,
-    tags: listing.item_tags ?? [],
-  },
-  seller: listing.seller ?? {
-    id: listing.seller_id,
-    nickname: listing.seller_nickname,
-    reputationScore: listing.seller_score,
-  },
-  buyer: listing.buyer ?? (listing.buyer_id ? { id: listing.buyer_id } : null),
-});
-
-const normalizeMessage = (message = {}) => ({
-  ...message,
-  createdAt: message.createdAt ?? message.created_at,
-  sender: message.sender ?? {
-    id: message.sender_id,
-    nickname: message.sender_nickname,
-    avatarUrl: message.sender_avatar,
-  },
-});
-
-=======
->>>>>>> e264237ae29bcc17901c6caf8e71c4ef3ac5952f
 /**
  * Search market listings (paginated & filterable)
  * @param {Object} filters - {keyword, rarity: 'COMMON'|'RARE'|'LEGENDARY'|...}

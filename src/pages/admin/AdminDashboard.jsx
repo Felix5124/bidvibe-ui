@@ -25,6 +25,9 @@ import {
   getItemDetail,
   approveItem,
   rejectItem,
+  listShippingRequests,
+  approveShippingRequest,
+  rejectShippingRequest,
 } from "../../api/adminItems";
 import {
   listTransactions,
@@ -53,6 +56,36 @@ import { formatRarity } from "../../utils/rarity";
 
 const readApiData = (response) =>
   response?.data?.data ?? response?.data ?? null;
+const toSafeNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const readPaginated = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return { content: [], meta: null };
+  }
+
+  const content = Array.isArray(payload.content) ? payload.content : [];
+  const metaSource =
+    payload.meta && typeof payload.meta === "object" ? payload.meta : payload;
+  const page = toSafeNumber(metaSource.page, 0);
+  const size = toSafeNumber(metaSource.size, content.length || 0);
+  const totalElements = toSafeNumber(metaSource.totalElements, content.length);
+  const totalPages = toSafeNumber(
+    metaSource.totalPages,
+    size > 0 ? Math.ceil(totalElements / size) : content.length > 0 ? 1 : 0,
+  );
+
+  return {
+    content,
+    meta: {
+      page,
+      size,
+      totalElements,
+      totalPages,
+    },
+  };
+};
 const ENGLISH_AUCTION_MINUTES = 2;
 
 const toOptionalNumber = (value) => {
@@ -109,6 +142,11 @@ export default function AdminDashboard() {
   const [items, setItems] = useState([]);
   const [itemsMeta, setItemsMeta] = useState(null);
   const [itemsPage, setItemsPage] = useState(0);
+  const [shippingPage, setShippingPage] = useState(0);
+  const [shippingRequests, setShippingRequests] = useState([]);
+  const [shippingRequestsMeta, setShippingRequestsMeta] = useState(null);
+  const [shippingRejectReasonByRequest, setShippingRejectReasonByRequest] =
+    useState({});
   const [transactions, setTransactions] = useState([]);
   const [txMeta, setTxMeta] = useState(null);
   const [txPage, setTxPage] = useState(0);
@@ -214,15 +252,29 @@ export default function AdminDashboard() {
   const loadUsers = async (targetPage = 0) => {
     const response = await listUsers({}, targetPage, 15);
     const payload = readApiData(response);
-    setUsers(payload?.content || []);
-    setUsersMeta(payload?.meta || null);
+    const paged = readPaginated(payload);
+    setUsers(paged.content);
+    setUsersMeta(paged.meta);
   };
 
   const loadItems = async (targetPage = 0) => {
     const response = await listItems({ status: "PENDING" }, targetPage, 15);
     const payload = readApiData(response);
-    setItems(payload?.content || []);
-    setItemsMeta(payload?.meta || null);
+    const paged = readPaginated(payload);
+    setItems(paged.content);
+    setItemsMeta(paged.meta);
+  };
+
+  const loadShippingRequests = async (targetPage = 0) => {
+    const response = await listShippingRequests(
+      { status: "PENDING" },
+      targetPage,
+      20,
+    );
+    const payload = readApiData(response);
+    const paged = readPaginated(payload);
+    setShippingRequests(paged.content);
+    setShippingRequestsMeta(paged.meta);
   };
 
   const loadTransactions = useCallback(
@@ -256,8 +308,7 @@ export default function AdminDashboard() {
     const payload = readApiData(responses);
     const paged = readPaginated(payload);
     setSessions(paged.content);
-    setSessions(payload?.content || []);
-    setSessionsMeta(payload?.meta || null);
+    setSessionsMeta(paged.meta);
   };
 
   const loadSessionCounts = async () => {
@@ -275,7 +326,7 @@ export default function AdminDashboard() {
         try {
           const response = await listSessions({ status }, 0, 1);
           const payload = readApiData(response);
-          counts[status] = payload?.meta?.totalElements || 0;
+          counts[status] = readPaginated(payload).meta?.totalElements || 0;
         } catch {
           counts[status] = 0;
         }
@@ -312,6 +363,7 @@ export default function AdminDashboard() {
       try {
         if (tab === "users") await loadUsers(targetPage);
         if (tab === "items") await loadItems(targetPage);
+        if (tab === "shipping") await loadShippingRequests(targetPage);
         if (tab === "transactions") await loadTransactions(targetPage);
         if (tab === "sessions") {
           await Promise.all([
@@ -337,6 +389,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     setUsersPage(0);
     setItemsPage(0);
+    setShippingPage(0);
     setTxPage(0);
     setSessionsPage(0);
     setSessionStatusFilter("");
@@ -350,6 +403,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (tab === "items") loadTabData(itemsPage);
   }, [tab, itemsPage, loadTabData]);
+
+  useEffect(() => {
+    if (tab === "shipping") loadTabData(shippingPage);
+  }, [tab, shippingPage, loadTabData]);
 
   useEffect(() => {
     if (tab === "transactions") loadTabData(txPage);
@@ -520,6 +577,11 @@ export default function AdminDashboard() {
   const sortedUsers = useMemo(() => sortByCreatedAtDesc(users), [users]);
 
   const sortedItems = useMemo(() => sortByCreatedAtDesc(items), [items]);
+
+  const sortedShippingRequests = useMemo(
+    () => sortByCreatedAtDesc(shippingRequests),
+    [shippingRequests],
+  );
 
   const sortedTransactions = useMemo(
     () => sortByCreatedAtDesc(transactions),
@@ -1085,6 +1147,118 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderShippingRequestsTab = () => (
+    <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <h2 className="text-xl font-semibold mb-4">Duyệt đơn giao hàng</h2>
+      <div className="space-y-3">
+        {sortedShippingRequests.map((request) => (
+          <div key={request.id} className="border border-gray-200 rounded p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-1">
+                <p className="font-medium text-gray-900">
+                  {request.item?.name || "Vật phẩm"}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Người yêu cầu:{" "}
+                  {request.requester?.nickname ||
+                    request.requester?.email ||
+                    "-"}
+                </p>
+                <p className="text-sm text-gray-600">
+                  SĐT: {request.requester?.phone || "-"}
+                </p>
+                <p className="text-sm text-gray-700">
+                  Địa chỉ giao: {request.shippingAddress || "-"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 md:justify-end">
+                <button
+                  onClick={() =>
+                    runAdminAction(() => approveShippingRequest(request.id), {
+                      successMessage: "Đã duyệt yêu cầu giao hàng.",
+                    })
+                  }
+                  className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isProcessingAction}
+                >
+                  Duyệt giao hàng
+                </button>
+                <button
+                  onClick={() =>
+                    runAdminAction(
+                      () =>
+                        rejectShippingRequest(request.id, {
+                          reason:
+                            shippingRejectReasonByRequest[request.id] ||
+                            "Địa chỉ nhận hàng chưa đủ chi tiết.",
+                        }),
+                      { successMessage: "Đã từ chối yêu cầu giao hàng." },
+                    )
+                  }
+                  className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isProcessingAction}
+                >
+                  Từ chối
+                </button>
+              </div>
+            </div>
+            <input
+              value={shippingRejectReasonByRequest[request.id] || ""}
+              onChange={(e) =>
+                setShippingRejectReasonByRequest((prev) => ({
+                  ...prev,
+                  [request.id]: e.target.value,
+                }))
+              }
+              placeholder="Lý do từ chối (nếu có)"
+              className="mt-3 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            />
+          </div>
+        ))}
+        {shippingRequests.length === 0 && (
+          <p className="text-gray-600">
+            Không có yêu cầu giao hàng đang chờ duyệt.
+          </p>
+        )}
+      </div>
+
+      {shippingRequestsMeta && shippingRequestsMeta.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <p className="text-sm text-gray-600">
+            Trang {(shippingRequestsMeta.page || 0) + 1} /{" "}
+            {Math.max(shippingRequestsMeta.totalPages, 1)} —{" "}
+            {shippingRequestsMeta.totalElements || 0} đơn
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShippingPage((p) => Math.max(0, p - 1))}
+              disabled={shippingPage === 0 || isLoadingTabData}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50"
+            >
+              ← Trước
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setShippingPage((p) =>
+                  Math.min(shippingRequestsMeta.totalPages - 1, p + 1),
+                )
+              }
+              disabled={
+                shippingPage >= shippingRequestsMeta.totalPages - 1 ||
+                isLoadingTabData
+              }
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50"
+            >
+              Sau →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const renderTransactionsTab = () => (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h2 className="text-xl font-semibold mb-4">Quản lý giao dịch ví</h2>
@@ -1285,8 +1459,11 @@ export default function AdminDashboard() {
           {sessionStatuses.map((status) => {
             const count =
               status.key === ""
-                ? Object.values(sessionCounts).reduce((a, b) => a + b, 0)
-                : sessionCounts[status.key] || 0;
+                ? Object.values(sessionCounts).reduce(
+                    (sum, value) => sum + toSafeNumber(value, 0),
+                    0,
+                  )
+                : toSafeNumber(sessionCounts[status.key], 0);
             const isActive = sessionStatusFilter === status.key;
             return (
               <button
@@ -1299,13 +1476,11 @@ export default function AdminDashboard() {
                 }`}
               >
                 {status.label}
-                {status.key !== "COMPLETED" && status.key !== "CANCELLED" && (
-                  <span
-                    className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${isActive ? "bg-white/50" : "bg-gray-100"}`}
-                  >
-                    {count}
-                  </span>
-                )}
+                <span
+                  className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${isActive ? "bg-white/50" : "bg-gray-100"}`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -1874,6 +2049,15 @@ export default function AdminDashboard() {
           </div>
         );
       }
+      if (tab === "shipping") {
+        return (
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <ItemCardSkeleton key={i} />
+            ))}
+          </div>
+        );
+      }
       return (
         <div className="bg-white border border-gray-200 rounded-lg p-6 text-gray-600">
           Đang tải dữ liệu...
@@ -1883,6 +2067,7 @@ export default function AdminDashboard() {
 
     if (tab === "users") return renderUsersTab();
     if (tab === "items") return renderItemsTab();
+    if (tab === "shipping") return renderShippingRequestsTab();
     if (tab === "transactions") return renderTransactionsTab();
     if (tab === "sessions") return renderSessionsTab();
     return renderMarketModerationTab();
@@ -2040,6 +2225,12 @@ export default function AdminDashboard() {
               className={`px-3 py-2 rounded text-sm ${tab === "items" ? "bg-blue-600 text-white" : "bg-white border border-gray-300"}`}
             >
               Vật phẩm
+            </button>
+            <button
+              onClick={() => setTab("shipping")}
+              className={`px-3 py-2 rounded text-sm ${tab === "shipping" ? "bg-blue-600 text-white" : "bg-white border border-gray-300"}`}
+            >
+              Đơn giao hàng
             </button>
             <button
               onClick={() => setTab("transactions")}
