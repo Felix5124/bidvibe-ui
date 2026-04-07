@@ -11,6 +11,7 @@
 
 import api from "./baseApi";
 
+<<<<<<< HEAD
 const normalizeListing = (listing = {}) => ({
   ...listing,
   askingPrice: Number(listing.askingPrice ?? listing.asking_price ?? 0),
@@ -42,6 +43,8 @@ const normalizeMessage = (message = {}) => ({
   },
 });
 
+=======
+>>>>>>> e264237ae29bcc17901c6caf8e71c4ef3ac5952f
 /**
  * Search market listings (paginated & filterable)
  * @param {Object} filters - {keyword, rarity: 'COMMON'|'RARE'|'LEGENDARY'|...}

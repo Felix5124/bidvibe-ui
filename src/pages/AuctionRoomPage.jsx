@@ -10,7 +10,7 @@ import {
 } from "../api/auctions";
 import { muteUser, unmuteUser } from "../api/adminUsers";
 import { getUserProfile } from "../api/users";
-import { createStompClient } from "../lib/stomp";
+import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import { formatVND } from "../utils/formatVND";
 import Countdown from "../components/Countdown";
@@ -126,7 +126,6 @@ export default function AuctionRoomPage() {
     return current;
   }, [isSessionRoom, sessionRoomId, parseSessionAuctions, pickCurrentAuction]);
 
-  // Load auction detail for the room header and status panel.
   const loadAuction = useCallback(async (auctionId) => {
     if (!auctionId) {
       setAuction(null);
@@ -136,7 +135,6 @@ export default function AuctionRoomPage() {
     setAuction(readApiData(response));
   }, []);
 
-  // Load recent bid history to display latest bidding activity.
   const loadBids = useCallback(async (auctionId) => {
     if (!auctionId) {
       setBids([]);
@@ -147,7 +145,6 @@ export default function AuctionRoomPage() {
     setBids(payload?.content || []);
   }, []);
 
-  // Load persisted live-chat history via REST API.
   const loadMessages = useCallback(async (auctionId) => {
     if (!auctionId) {
       setMessages([]);
@@ -155,7 +152,6 @@ export default function AuctionRoomPage() {
     }
     const response = await getLiveChatMessages(auctionId);
     const payload = readApiData(response);
-    // Handle paginated response (content array) or direct array
     const messagesArray = Array.isArray(payload)
       ? payload
       : Array.isArray(payload?.content)
@@ -189,16 +185,13 @@ export default function AuctionRoomPage() {
       } catch (err) {
         console.error("[AuctionRoomPage] Failed to load room data", err);
         setError(
-          err?.response?.data?.message || "Không tải được phong dau gia.",
+          err?.response?.data?.message || "Không tải được phòng đấu giá.",
         );
       } finally {
         setLoading(false);
       }
     };
-
-    if (isSessionRoom ? sessionRoomId : id) {
-      run();
-    }
+    if (isSessionRoom ? sessionRoomId : id) run();
   }, [
     isSessionRoom,
     sessionRoomId,
@@ -211,11 +204,9 @@ export default function AuctionRoomPage() {
 
   useEffect(() => {
     if (!isSessionRoom || !sessionRoomId) return undefined;
-
     const timer = setInterval(() => {
       loadSessionQueue().catch(() => {});
     }, 3000);
-
     return () => clearInterval(timer);
   }, [isSessionRoom, sessionRoomId, loadSessionQueue]);
 
@@ -224,102 +215,95 @@ export default function AuctionRoomPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // --- SOCKET.IO FOR AUCTION ROOM ---
   useEffect(() => {
     if (!effectiveAuctionId) return;
-    Promise.all([
-      loadAuction(effectiveAuctionId),
-      loadBids(effectiveAuctionId),
-      loadMessages(effectiveAuctionId),
-    ]).catch(() => {});
-  }, [effectiveAuctionId, loadAuction, loadBids, loadMessages]);
 
-  useEffect(() => {
-    if (!effectiveAuctionId) return undefined;
+    const socket = getSocket();
 
-    const client = createStompClient({
-      onConnect: () => {
-        // Subscribe to auction updates - use payload directly for faster price updates
-        client.subscribe(`/topic/auction/${effectiveAuctionId}`, (msg) => {
-          try {
-            const payload = JSON.parse(msg.body);
-            console.log("[AuctionRoomPage] Received auction update:", payload);
+    const onConnect = () => {
+      socket.emit("auction:join", effectiveAuctionId);
+    };
 
-            // Update auction state immediately with WebSocket data
-            if (
-              payload.currentPrice !== undefined ||
-              payload.status ||
-              payload.endTime
-            ) {
-              setAuction((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  currentPrice: payload.currentPrice ?? prev.currentPrice,
-                  status: payload.status ?? prev.status,
-                  endTime: payload.endTime ?? prev.endTime,
-                  winner: payload.currentLeader ?? prev.winner,
-                };
-              });
-              // Also reload bids to show latest bid history
-              loadBids(effectiveAuctionId).catch(() => {});
-              if (isSessionRoom && payload.status === "ENDED") {
-                loadSessionQueue().catch(() => {});
-              }
-            }
-          } catch (err) {
-            console.error(
-              "[AuctionRoomPage] Failed to parse auction update payload",
-              err,
-            );
-            // Fallback to reloading
-            loadAuction(effectiveAuctionId).catch(() => {});
-            loadBids(effectiveAuctionId).catch(() => {});
-            if (isSessionRoom) {
-              loadSessionQueue().catch(() => {});
-            }
-          }
-        });
+    const onAuctionUpdate = (payload) => {
+      setAuction((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentPrice: payload.currentPrice ?? prev.currentPrice,
+          status: payload.status ?? prev.status,
+          endTime: payload.endTime ?? prev.endTime,
+          winner: payload.currentLeader ?? prev.winner,
+        };
+      });
+      loadBids(effectiveAuctionId).catch(() => {});
+      if (isSessionRoom && payload.status === "ENDED") {
+        loadSessionQueue().catch(() => {});
+      }
+    };
 
-        client.subscribe(`/topic/chat/${effectiveAuctionId}`, (msg) => {
-          try {
-            const payload = JSON.parse(msg.body);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: payload.messageId || crypto.randomUUID(),
-                sender: {
-                  id: payload.senderId,
-                  nickname: payload.senderNickname,
-                  avatarUrl: payload.senderAvatarUrl,
-                },
-                content: payload.content,
-                createdAt: payload.timestamp,
-              },
-            ]);
-          } catch (err) {
-            console.error(
-              "[AuctionRoomPage] Failed to parse websocket chat payload",
-              err,
-            );
-            loadMessages(effectiveAuctionId).catch(() => {});
-          }
-        });
-      },
-      onWebSocketError: () => {},
-      onStompError: () => {},
-    });
+    const onChatMessage = (payload) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === payload.messageId)) return prev;
+        const mine = payload.senderId === user?.id;
+        if (mine) {
+          return prev.map((m) =>
+            m.id.startsWith("temp-") &&
+            m.sender?.id === payload.senderId &&
+            m.content === payload.content
+              ? {
+                  id: payload.messageId,
+                  sender: {
+                    id: payload.senderId,
+                    nickname: payload.senderNickname,
+                    avatarUrl: payload.senderAvatarUrl,
+                  },
+                  content: payload.content,
+                  createdAt: payload.timestamp,
+                }
+              : m,
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: payload.messageId || crypto.randomUUID(),
+            sender: {
+              id: payload.senderId,
+              nickname: payload.senderNickname,
+              avatarUrl: payload.senderAvatarUrl,
+            },
+            content: payload.content,
+            createdAt: payload.timestamp,
+          },
+        ];
+      });
+    };
+
+    const onWsError = (payload) => {
+      if (payload.message) {
+        toast.error(payload.message);
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("auction_update", onAuctionUpdate);
+    socket.on("chat_message", onChatMessage);
+    socket.on("error", onWsError);
+
+    if (socket.connected) {
+      onConnect();
+    }
 
     return () => {
-      client.deactivate();
+      socket.emit("auction:leave", effectiveAuctionId);
+      socket.off("connect", onConnect);
+      socket.off("auction_update", onAuctionUpdate);
+      socket.off("chat_message", onChatMessage);
+      socket.off("error", onWsError);
     };
-  }, [
-    effectiveAuctionId,
-    loadAuction,
-    loadBids,
-    loadMessages,
-    isSessionRoom,
-    loadSessionQueue,
-  ]);
+  }, [effectiveAuctionId, loadBids, isSessionRoom, loadSessionQueue, toast]);
+  // -------------------------------------------------------------
 
   const formatVnd = (value) => {
     if (value == null) return "-";
@@ -338,11 +322,9 @@ export default function AuctionRoomPage() {
     };
 
   const auctionType = auction?.session?.type || auction?.type;
-
   const auctionTypeLabel =
     AUCTION_TYPE_LABEL[auctionType] || auctionType || "Không xác định";
 
-  // Wrapper to execute an auction action then refresh room data.
   const submitAction = async (action) => {
     setError(null);
     try {
@@ -362,7 +344,6 @@ export default function AuctionRoomPage() {
     }
   };
 
-  // Submit a standard bid amount.
   const handlePlaceBid = (event) => {
     event.preventDefault();
     if (!effectiveAuctionId) return;
@@ -374,18 +355,31 @@ export default function AuctionRoomPage() {
     });
   };
 
-  // Send chat message to auction live chat.
   const handleSendChat = async (event) => {
     event.preventDefault();
     if (!effectiveAuctionId) return;
     const content = chatInput.trim();
     if (!content) return;
 
+    const tempId = "temp-" + crypto.randomUUID();
+    const optimisticMsg = {
+      id: tempId,
+      sender: {
+        id: user?.id,
+        nickname: user?.nickname || user?.email || "You",
+        avatarUrl: user?.avatarUrl || null,
+      },
+      content: content,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setChatInput("");
+
     try {
       await sendLiveChatMessage(effectiveAuctionId, { content });
-      setChatInput("");
     } catch (err) {
       console.error("[AuctionRoomPage] Failed to send chat message", err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       const errorMessage =
         err?.response?.data?.message || "Gửi tin nhắn thất bại.";
       if (err?.response?.status === 403) {
@@ -466,6 +460,7 @@ export default function AuctionRoomPage() {
     if (!suggestedBidAmount) return;
     setBidAmount(suggestedBidAmount);
   };
+
   const sortedSessionAuctions = useMemo(() => {
     return [...sessionAuctions].sort((a, b) => {
       const aTime =
@@ -478,15 +473,16 @@ export default function AuctionRoomPage() {
         toTimeMs(b?.createdAt) ||
         toTimeMs(b?.updatedAt) ||
         toTimeMs(b?.endTime);
-
       if (aTime !== bTime) return bTime - aTime;
       return (b?.orderIndex ?? 0) - (a?.orderIndex ?? 0);
     });
   }, [sessionAuctions]);
+
   const waitingQueue = useMemo(
     () => sortedSessionAuctions.filter((a) => a.status === "WAITING"),
     [sortedSessionAuctions],
   );
+
   const latestEndedInSession = useMemo(() => {
     return (
       sortedSessionAuctions
@@ -497,6 +493,7 @@ export default function AuctionRoomPage() {
         )[0] || null
     );
   }, [sortedSessionAuctions]);
+
   const breakTargetMs = useMemo(() => {
     if (!isSessionRoom) return null;
     if (auction?.status === "ACTIVE") return null;
@@ -512,6 +509,7 @@ export default function AuctionRoomPage() {
     waitingQueue.length,
     latestEndedInSession,
   ]);
+
   const breakRemainingSeconds =
     breakTargetMs == null
       ? null
@@ -531,6 +529,7 @@ export default function AuctionRoomPage() {
       (url) => typeof url === "string" && url.trim().length > 0,
     );
   }, [auction?.item?.imageUrls]);
+
   const itemImageUrl = itemImageUrls[itemImageIndex] || null;
   const modalImageUrl = itemImageUrls[modalImageIndex] || null;
 
@@ -559,7 +558,6 @@ export default function AuctionRoomPage() {
 
   const handleSlideItemImage = (direction) => {
     if (itemImageUrls.length < 2 || isImageSliding) return;
-
     const outOffset = direction === "next" ? -14 : 14;
     const inOffset = direction === "next" ? 14 : -14;
     setIsImageSliding(true);
@@ -582,21 +580,14 @@ export default function AuctionRoomPage() {
     }, 120);
   };
 
-  const handlePrevItemImage = () => {
-    handleSlideItemImage("prev");
-  };
-
-  const handleNextItemImage = () => {
-    handleSlideItemImage("next");
-  };
-
+  const handlePrevItemImage = () => handleSlideItemImage("prev");
+  const handleNextItemImage = () => handleSlideItemImage("next");
   const handlePrevModalImage = () => {
     if (itemImageUrls.length < 2) return;
     setModalImageIndex(
       (prev) => (prev - 1 + itemImageUrls.length) % itemImageUrls.length,
     );
   };
-
   const handleNextModalImage = () => {
     if (itemImageUrls.length < 2) return;
     setModalImageIndex((prev) => (prev + 1) % itemImageUrls.length);
@@ -624,7 +615,6 @@ export default function AuctionRoomPage() {
 
   useEffect(() => {
     if (!isSessionRoom || loading) return;
-
     let key = "";
     let notice = "";
 
@@ -793,7 +783,13 @@ export default function AuctionRoomPage() {
                               ? "text-amber-700"
                               : "text-emerald-700"
                         }`}
-                      ></p>
+                      >
+                        {isCriticalEnding
+                          ? "Sắp chốt giá"
+                          : isEndingSoon
+                            ? "Sắp hết thời gian"
+                            : "Đang cập nhật realtime"}
+                      </p>
                     )}
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">

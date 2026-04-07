@@ -190,9 +190,10 @@ export default function AdminDashboard() {
         getMarketStats(),
       ]);
 
-      setRevenue(normalizeRevenue(readApiData(revenueRes)));
-      setAuctionStats(normalizeAuctionStats(readApiData(auctionRes)));
-      setMarketStats(normalizeMarketStats(readApiData(marketRes)));
+      setRevenue(readApiData(revenueRes));
+      setAuctionStats(readApiData(auctionRes));
+      setMarketStats(readApiData(marketRes));
+    } catch (error) {
       console.error("[AdminDashboard] Failed to load deep analytics", error);
       setAdminError(
         error?.response?.data?.message || "Không tải được analytics chi tiet.",
