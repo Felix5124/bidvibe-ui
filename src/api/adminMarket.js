@@ -11,6 +11,9 @@ export const getListingDisputeMessages = (listingId) => {
   return api.get(`/admin/market/listings/${listingId}/messages`)
 }
 
+export const getListingMessagesForAdmin = getListingDisputeMessages
+
 export default {
   getListingDisputeMessages,
+  getListingMessagesForAdmin,
 }
