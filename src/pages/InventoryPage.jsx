@@ -74,6 +74,7 @@ export default function InventoryPage() {
   const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
   const [shippingTargetItemId, setShippingTargetItemId] = useState(null);
   const [shippingAddressDraft, setShippingAddressDraft] = useState("");
+  const [shippingPhoneDraft, setShippingPhoneDraft] = useState("");
   const [updateProfileAddress, setUpdateProfileAddress] = useState(true);
   const [isLoadingShippingProfile, setIsLoadingShippingProfile] =
     useState(false);
@@ -132,9 +133,11 @@ export default function InventoryPage() {
       const response = await getMyProfile();
       const profile = readApiData(response);
       setShippingAddressDraft(profile?.address || "");
+      setShippingPhoneDraft(profile?.phone || "");
     } catch {
       setShippingAddressDraft("");
-      toast.warning("Không tải được địa chỉ hồ sơ, hãy nhập thủ công.");
+      setShippingPhoneDraft("");
+      toast.warning("Không tải được thông tin hồ sơ, hãy nhập thủ công.");
     } finally {
       setIsLoadingShippingProfile(false);
     }
@@ -143,9 +146,22 @@ export default function InventoryPage() {
   const handleConfirmShippingRequest = async () => {
     const itemId = shippingTargetItemId;
     const address = String(shippingAddressDraft || "").trim();
+    const phone = String(shippingPhoneDraft || "").trim();
+
     if (!itemId) return;
+
     if (!address) {
       toast.warning("Vui lòng nhập địa chỉ giao hàng.");
+      return;
+    }
+
+    if (!phone) {
+      toast.warning("Vui lòng nhập số điện thoại.");
+      return;
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      toast.warning("Số điện thoại phải chính xác 10 chữ số.");
       return;
     }
 
@@ -153,12 +169,14 @@ export default function InventoryPage() {
     try {
       await requestShipping(itemId, {
         shippingAddress: address,
+        shippingPhone: phone,
         updateProfileAddress,
       });
       toast.success("Đã gửi yêu cầu giao hàng.");
       setIsShippingModalOpen(false);
       setShippingTargetItemId(null);
       setShippingAddressDraft("");
+      setShippingPhoneDraft("");
       await loadInventory(page);
     } catch (err) {
       console.error("[InventoryPage] Failed to request shipping", err);
@@ -562,15 +580,41 @@ export default function InventoryPage() {
               onClick={(event) => event.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-gray-900">
-                Xác minh địa chỉ giao hàng
+                Xác minh thông tin giao hàng
               </h3>
               <p className="mt-1 text-sm text-gray-600">
-                Địa chỉ mặc định được lấy từ hồ sơ. Bạn có thể chỉnh trực tiếp
-                tại đây trước khi gửi yêu cầu.
+                Thông tin mặc định được lấy từ hồ sơ. Bạn có thể chỉnh sửa trước
+                khi gửi yêu cầu.
               </p>
 
               <label className="mt-4 block text-sm font-medium text-gray-700">
-                Địa chỉ nhận hàng
+                Số điện thoại <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={shippingPhoneDraft}
+                onChange={(event) => {
+                  const value = event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+                  setShippingPhoneDraft(value);
+                }}
+                disabled={
+                  isLoadingShippingProfile ||
+                  processingId === shippingTargetItemId
+                }
+                maxLength="10"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Nhập số điện thoại (10 chữ số)"
+              />
+              {shippingPhoneDraft && !/^\d{10}$/.test(shippingPhoneDraft) && (
+                <p className="mt-1 text-sm text-red-500">
+                  Số điện thoại phải chính xác 10 chữ số
+                </p>
+              )}
+
+              <label className="mt-4 block text-sm font-medium text-gray-700">
+                Địa chỉ nhận hàng <span className="text-red-500">*</span>
               </label>
               <textarea
                 rows={4}
@@ -603,6 +647,7 @@ export default function InventoryPage() {
                   onClick={() => {
                     setIsShippingModalOpen(false);
                     setShippingTargetItemId(null);
+                    setShippingPhoneDraft("");
                   }}
                   className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
                 >
@@ -613,9 +658,17 @@ export default function InventoryPage() {
                   onClick={handleConfirmShippingRequest}
                   disabled={
                     isLoadingShippingProfile ||
-                    processingId === shippingTargetItemId
+                    processingId === shippingTargetItemId ||
+                    !shippingAddressDraft.trim() ||
+                    !/^\d{10}$/.test(shippingPhoneDraft)
                   }
-                  className="px-4 py-2 rounded-lg bg-amber-600 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+                  title={
+                    !shippingAddressDraft.trim() ||
+                    !/^\d{10}$/.test(shippingPhoneDraft)
+                      ? "Vui lòng nhập đầy đủ SĐT (10 số) và địa chỉ"
+                      : ""
+                  }
+                  className="px-4 py-2 rounded-lg bg-amber-600 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Xác nhận yêu cầu gửi
                 </button>
