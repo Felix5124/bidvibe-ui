@@ -788,7 +788,7 @@ export default function AuctionRoomPage() {
                           ? "Sắp chốt giá"
                           : isEndingSoon
                             ? "Sắp hết thời gian"
-                            : "Đang cập nhật realtime"}
+                            : ""}
                       </p>
                     )}
                   </div>

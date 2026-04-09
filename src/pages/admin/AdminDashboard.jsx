@@ -88,6 +88,20 @@ const readPaginated = (payload) => {
 };
 const ENGLISH_AUCTION_MINUTES = 2;
 
+const TYPE_META = {
+  ENGLISH: "Tăng dần",
+  DUTCH: "Giảm dần",
+  SEALED: "Kín",
+};
+
+const STATUS_META = {
+  SCHEDULED: "Đã lên lịch",
+  ACTIVE: "Đang diễn ra",
+  PAUSED: "Tạm dừng",
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã hủy",
+};
+
 const toOptionalNumber = (value) => {
   if (value == null || String(value).trim() === "") return null;
   const normalized = String(value)
@@ -1151,70 +1165,108 @@ export default function AdminDashboard() {
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h2 className="text-xl font-semibold mb-4">Duyệt đơn giao hàng</h2>
       <div className="space-y-3">
-        {sortedShippingRequests.map((request) => (
-          <div key={request.id} className="border border-gray-200 rounded p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="space-y-1">
-                <p className="font-medium text-gray-900">
-                  {request.item?.name || "Vật phẩm"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Người yêu cầu:{" "}
-                  {request.requester?.nickname ||
-                    request.requester?.email ||
-                    "-"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  SĐT: {request.requester?.phone || "-"}
-                </p>
-                <p className="text-sm text-gray-700">
-                  Địa chỉ giao: {request.shippingAddress || "-"}
-                </p>
+        {sortedShippingRequests.map((request) => {
+          const hasPhone =
+            request.requester?.phone && request.requester.phone.trim() !== "";
+          const hasAddress =
+            request.shippingAddress && request.shippingAddress.trim() !== "";
+          const missingInfo = !hasPhone || !hasAddress;
+          return (
+            <div
+              key={request.id}
+              className={`border rounded p-4 ${
+                missingInfo ? "border-amber-300 bg-amber-50" : "border-gray-200"
+              }`}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1 flex-1">
+                  <p className="font-medium text-gray-900">
+                    {request.item?.name || "Vật phẩm"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Người yêu cầu:{" "}
+                    {request.requester?.nickname ||
+                      request.requester?.email ||
+                      "-"}
+                  </p>
+                  <p
+                    className={`text-sm ${
+                      hasPhone ? "text-gray-600" : "text-amber-700 font-medium"
+                    }`}
+                  >
+                    SĐT: {hasPhone ? request.requester.phone : "Chưa cập nhật"}
+                  </p>
+                  <p
+                    className={`text-sm ${
+                      hasAddress
+                        ? "text-gray-700"
+                        : "text-amber-700 font-medium"
+                    }`}
+                  >
+                    Địa chỉ giao:{" "}
+                    {hasAddress ? request.shippingAddress : "Chưa cập nhật"}
+                  </p>
+                  {missingInfo && (
+                    <div className="mt-2 p-2 bg-amber-100 border border-amber-200 rounded text-amber-800 text-xs">
+                      ⚠️ Người dùng cần cập nhật {!hasPhone && "SĐT"}
+                      {!hasPhone && !hasAddress ? " và " : ""}
+                      {!hasAddress && "địa chỉ"} trong hồ sơ cá nhân trước khi
+                      giao hàng.
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 md:justify-end">
+                  <button
+                    onClick={() =>
+                      runAdminAction(() => approveShippingRequest(request.id), {
+                        successMessage: "Đã duyệt yêu cầu giao hàng.",
+                      })
+                    }
+                    className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isProcessingAction || missingInfo}
+                    title={
+                      missingInfo
+                        ? "Vui lòng đảm bảo người dùng đã cập nhật SĐT và địa chỉ"
+                        : ""
+                    }
+                  >
+                    Duyệt giao hàng
+                  </button>
+                  <button
+                    onClick={() =>
+                      runAdminAction(
+                        () =>
+                          rejectShippingRequest(request.id, {
+                            reason:
+                              shippingRejectReasonByRequest[request.id] ||
+                              (missingInfo
+                                ? `Người dùng cần cập nhật ${!hasPhone ? "SĐT" : ""}${!hasPhone && !hasAddress ? " và " : ""}${!hasAddress ? "địa chỉ" : ""}.`
+                                : "Địa chỉ nhận hàng chưa đủ chi tiết."),
+                          }),
+                        { successMessage: "Đã từ chối yêu cầu giao hàng." },
+                      )
+                    }
+                    className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isProcessingAction}
+                  >
+                    Từ chối
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2 md:justify-end">
-                <button
-                  onClick={() =>
-                    runAdminAction(() => approveShippingRequest(request.id), {
-                      successMessage: "Đã duyệt yêu cầu giao hàng.",
-                    })
-                  }
-                  className="px-2 py-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isProcessingAction}
-                >
-                  Duyệt giao hàng
-                </button>
-                <button
-                  onClick={() =>
-                    runAdminAction(
-                      () =>
-                        rejectShippingRequest(request.id, {
-                          reason:
-                            shippingRejectReasonByRequest[request.id] ||
-                            "Địa chỉ nhận hàng chưa đủ chi tiết.",
-                        }),
-                      { successMessage: "Đã từ chối yêu cầu giao hàng." },
-                    )
-                  }
-                  className="px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isProcessingAction}
-                >
-                  Từ chối
-                </button>
-              </div>
+              <input
+                value={shippingRejectReasonByRequest[request.id] || ""}
+                onChange={(e) =>
+                  setShippingRejectReasonByRequest((prev) => ({
+                    ...prev,
+                    [request.id]: e.target.value,
+                  }))
+                }
+                placeholder="Lý do từ chối (nếu có)"
+                className="mt-3 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+              />
             </div>
-            <input
-              value={shippingRejectReasonByRequest[request.id] || ""}
-              onChange={(e) =>
-                setShippingRejectReasonByRequest((prev) => ({
-                  ...prev,
-                  [request.id]: e.target.value,
-                }))
-              }
-              placeholder="Lý do từ chối (nếu có)"
-              className="mt-3 w-full px-2 py-1 border border-gray-300 rounded text-sm"
-            />
-          </div>
-        ))}
+          );
+        })}
         {shippingRequests.length === 0 && (
           <p className="text-gray-600">
             Không có yêu cầu giao hàng đang chờ duyệt.
@@ -1559,7 +1611,8 @@ export default function AdminDashboard() {
               <div>
                 <p className="font-medium text-gray-900">{s.title}</p>
                 <p className="text-sm text-gray-600">
-                  {s.type} | {s.status}
+                  {TYPE_META[s.type] || s.type} |{" "}
+                  {STATUS_META[s.status] || s.status}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1769,13 +1822,6 @@ export default function AdminDashboard() {
                                 Trạng thái:{" "}
                                 <strong className="text-slate-800">
                                   {auction.status}
-                                </strong>
-                              </span>
-                              <span className="text-slate-300">|</span>
-                              <span className="text-sm text-slate-600">
-                                Giá:{" "}
-                                <strong className="text-emerald-600">
-                                  {formatVnd(auction.currentPrice)}
                                 </strong>
                               </span>
                             </div>
